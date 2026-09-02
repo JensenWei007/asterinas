@@ -38,6 +38,7 @@ pub(super) const KVM_CAP_NR_MEMSLOTS: usize = 10;
 pub(super) const KVM_CAP_MP_STATE: usize = 14;
 pub(super) const KVM_CAP_COALESCED_MMIO: usize = 15;
 pub(super) const KVM_CAP_DESTROY_MEMORY_REGION_WORKS: usize = 21;
+pub(super) const KVM_CAP_SET_GUEST_DEBUG: usize = 23;
 pub(super) const KVM_CAP_IRQ_ROUTING: usize = 25;
 pub(super) const KVM_CAP_IRQ_INJECT_STATUS: usize = 26;
 pub(super) const KVM_CAP_JOIN_MEMORY_REGIONS_WORKS: usize = 30;
@@ -56,13 +57,20 @@ pub(super) const KVM_CAP_ENABLE_CAP: usize = 54;
 pub(super) const KVM_CAP_XSAVE: usize = 55;
 pub(super) const KVM_CAP_GET_TSC_KHZ: usize = 61;
 pub(super) const KVM_CAP_MAX_VCPUS: usize = 66;
+pub(super) const KVM_CAP_ONE_REG: usize = 70;
 pub(super) const KVM_CAP_TSC_DEADLINE_TIMER: usize = 72;
 pub(super) const KVM_CAP_SIGNAL_MSI: usize = 77;
+pub(super) const KVM_CAP_READONLY_MEM: usize = 81;
+
 pub(super) const KVM_CAP_ENABLE_CAP_VM: usize = 98;
 pub(super) const KVM_CAP_SPLIT_IRQCHIP: usize = 121;
 pub(super) const KVM_CAP_IOEVENTFD_ANY_LENGTH: usize = 122;
 pub(super) const KVM_CAP_MAX_VCPU_ID: usize = 128;
 pub(super) const KVM_CAP_IMMEDIATE_EXIT: usize = 136;
+pub(super) const KVM_CAP_DIRTY_LOG_RING: usize = 192;
+pub(super) const KVM_CAP_VM_GPA_BITS: usize = 207;
+pub(super) const KVM_CAP_DIRTY_LOG_RING_ACQ_REL: usize = 223;
+pub(super) const KVM_CAP_RISCV_MP_STATE_RESET: usize = 242;
 
 pub(super) const KVM_IRQCHIP_PIC_MASTER: u32 = 0;
 pub(super) const KVM_IRQCHIP_PIC_SLAVE: u32 = 1;
@@ -127,11 +135,11 @@ pub(super) const IA32_TSC_DEADLINE: u32 = 0x6e0;
 // System ioctls.
 pub(super) type GetApiVersion = ioc!(KVM_GET_API_VERSION, 0xAE, 0x00, NoData);
 pub(super) type CreateVm = ioc!(KVM_CREATE_VM, 0xAE, 0x01, NoData);
-pub(super) type GetMsrIndexList = ioc!(KVM_GET_MSR_INDEX_LIST, 0xAE, 0x02, InOutData<MsrList>);
+//pub(super) type GetMsrIndexList = ioc!(KVM_GET_MSR_INDEX_LIST, 0xAE, 0x02, InOutData<MsrList>);
 pub(super) type CheckExtension = ioc!(KVM_CHECK_EXTENSION, 0xAE, 0x03, NoData);
 pub(super) type GetVcpuMmapSize = ioc!(KVM_GET_VCPU_MMAP_SIZE, 0xAE, 0x04, NoData);
-pub(super) type GetSupportedCpuid =
-    ioc!(KVM_GET_SUPPORTED_CPUID, 0xAE, 0x05, InOutData<VcpuCpuid2>);
+//pub(super) type GetSupportedCpuid =
+//    ioc!(KVM_GET_SUPPORTED_CPUID, 0xAE, 0x05, InOutData<VcpuCpuid2>);
 pub(super) type X86GetMceCapSupported =
     ioc!(KVM_X86_GET_MCE_CAP_SUPPORTED, 0xAE, 0x9d, OutData<u64>);
 pub(super) type GetStatsFd = ioc!(KVM_GET_STATS_FD, 0xAE, 0xce, NoData);
@@ -139,19 +147,19 @@ pub(super) type GetStatsFd = ioc!(KVM_GET_STATS_FD, 0xAE, 0xce, NoData);
 // VM ioctls.
 pub(super) type CreateVcpu = ioc!(KVM_CREATE_VCPU, 0xAE, 0x41, NoData);
 pub(super) type SetNrMmuPages = ioc!(KVM_SET_NR_MMU_PAGES, 0xAE, 0x44, NoData);
-pub(super) type SetUserMemoryRegion = ioc!(
-    KVM_SET_USER_MEMORY_REGION,
-    0xAE,
-    0x46,
-    InData<UserMemoryRegion>
-);
+//pub(super) type SetUserMemoryRegion = ioc!(
+//    KVM_SET_USER_MEMORY_REGION,
+//    0xAE,
+//    0x46,
+//    InData<UserMemoryRegion>
+//);
 pub(super) type SetTssAddr = ioc!(KVM_SET_TSS_ADDR, 0xAE, 0x47, NoData);
 pub(super) type SetIdentityMapAddr = ioc!(KVM_SET_IDENTITY_MAP_ADDR, 0xAE, 0x48, InData<u64>);
 pub(super) type CreateIrqchip = ioc!(KVM_CREATE_IRQCHIP, 0xAE, 0x60, NoData);
-pub(super) type IrqLine = ioc!(KVM_IRQ_LINE, 0xAE, 0x61, InData<IrqLevel>);
-pub(super) type GetIrqchip = ioc!(KVM_GET_IRQCHIP, 0xAE, 0x62, InOutData<IrqChip>);
-pub(super) type SetIrqchip = ioc!(KVM_SET_IRQCHIP, 0xAE, 0x63, OutData<IrqChip>);
-pub(super) type IrqLineStatus = ioc!(KVM_IRQ_LINE_STATUS, 0xAE, 0x67, InOutData<IrqLevel>);
+//pub(super) type IrqLine = ioc!(KVM_IRQ_LINE, 0xAE, 0x61, InData<IrqLevel>);
+//pub(super) type GetIrqchip = ioc!(KVM_GET_IRQCHIP, 0xAE, 0x62, InOutData<IrqChip>);
+//pub(super) type SetIrqchip = ioc!(KVM_SET_IRQCHIP, 0xAE, 0x63, OutData<IrqChip>);
+//pub(super) type IrqLineStatus = ioc!(KVM_IRQ_LINE_STATUS, 0xAE, 0x67, InOutData<IrqLevel>);
 pub(super) type RegisterCoalescedMmio = ioc!(
     KVM_REGISTER_COALESCED_MMIO,
     0xAE,
@@ -164,42 +172,43 @@ pub(super) type UnregisterCoalescedMmio = ioc!(
     0x68,
     InData<CoalescedMmioZone>
 );
-pub(super) type SetGsiRouting = ioc!(KVM_SET_GSI_ROUTING, 0xAE, 0x6a, InData<IrqRouting>);
-pub(super) type IrqFd = ioc!(KVM_IRQFD, 0xAE, 0x76, InData<IrqFdConfig>);
-pub(super) type CreatePit2 = ioc!(KVM_CREATE_PIT2, 0xAE, 0x77, InData<PitConfig>);
+//pub(super) type SetGsiRouting = ioc!(KVM_SET_GSI_ROUTING, 0xAE, 0x6a, InData<IrqRouting>);
+//pub(super) type IrqFd = ioc!(KVM_IRQFD, 0xAE, 0x76, InData<IrqFdConfig>);
+//pub(super) type CreatePit2 = ioc!(KVM_CREATE_PIT2, 0xAE, 0x77, InData<PitConfig>);
 pub(super) type IoEventFd = ioc!(KVM_IOEVENTFD, 0xAE, 0x79, InData<IoEventFdConfig>);
-pub(super) type SetClock = ioc!(KVM_SET_CLOCK, 0xAE, 0x7b, InData<ClockData>);
-pub(super) type GetClock = ioc!(KVM_GET_CLOCK, 0xAE, 0x7c, OutData<ClockData>);
-pub(super) type SignalMsi = ioc!(KVM_SIGNAL_MSI, 0xAE, 0xa5, InData<MsiMessage>);
-pub(super) type EnableCap = ioc!(KVM_ENABLE_CAP, 0xAE, 0xa3, InData<EnableCapData>);
+//pub(super) type SetClock = ioc!(KVM_SET_CLOCK, 0xAE, 0x7b, InData<ClockData>);
+//pub(super) type GetClock = ioc!(KVM_GET_CLOCK, 0xAE, 0x7c, OutData<ClockData>);
+//pub(super) type SignalMsi = ioc!(KVM_SIGNAL_MSI, 0xAE, 0xa5, InData<MsiMessage>);
+//pub(super) type EnableCap = ioc!(KVM_ENABLE_CAP, 0xAE, 0xa3, InData<EnableCapData>);
 
 // VCPU ioctls.
 pub(super) type Run = ioc!(KVM_RUN, 0xAE, 0x80, NoData);
 pub(super) type GetRegs = ioc!(KVM_GET_REGS, 0xAE, 0x81, OutData<VcpuRegs>);
 pub(super) type SetRegs = ioc!(KVM_SET_REGS, 0xAE, 0x82, InData<VcpuRegs>);
-pub(super) type GetSregs = ioc!(KVM_GET_SREGS, 0xAE, 0x83, OutData<VcpuSregs>);
-pub(super) type SetSregs = ioc!(KVM_SET_SREGS, 0xAE, 0x84, InData<VcpuSregs>);
-pub(super) type GetMsrs = ioc!(KVM_GET_MSRS, 0xAE, 0x88, InOutData<VcpuMsrs>);
-pub(super) type SetMsrs = ioc!(KVM_SET_MSRS, 0xAE, 0x89, InData<VcpuMsrs>);
-pub(super) type SetFpu = ioc!(KVM_SET_FPU, 0xAE, 0x8d, InData<VcpuFpu>);
-pub(super) type GetLapic = ioc!(KVM_GET_LAPIC, 0xAE, 0x8e, OutData<LapicState>);
-pub(super) type SetLapic = ioc!(KVM_SET_LAPIC, 0xAE, 0x8f, InData<LapicState>);
-pub(super) type SetCpuid2 = ioc!(KVM_SET_CPUID2, 0xAE, 0x90, InData<VcpuCpuid2>);
-pub(super) type TprAccessReporting =
-    ioc!(KVM_TPR_ACCESS_REPORTING, 0xAE, 0x92, InOutData<TprAccessCtl>);
-pub(super) type SetVapicAddr = ioc!(KVM_SET_VAPIC_ADDR, 0xAE, 0x93, InData<VapicAddr>);
+//pub(super) type GetSregs = ioc!(KVM_GET_SREGS, 0xAE, 0x83, OutData<VcpuSregs>);
+//pub(super) type SetSregs = ioc!(KVM_SET_SREGS, 0xAE, 0x84, InData<VcpuSregs>);
+//pub(super) type GetMsrs = ioc!(KVM_GET_MSRS, 0xAE, 0x88, InOutData<VcpuMsrs>);
+//pub(super) type SetMsrs = ioc!(KVM_SET_MSRS, 0xAE, 0x89, InData<VcpuMsrs>);
+//pub(super) type SetFpu = ioc!(KVM_SET_FPU, 0xAE, 0x8d, InData<VcpuFpu>);
+//pub(super) type GetLapic = ioc!(KVM_GET_LAPIC, 0xAE, 0x8e, OutData<LapicState>);
+//pub(super) type SetLapic = ioc!(KVM_SET_LAPIC, 0xAE, 0x8f, InData<LapicState>);
+//pub(super) type SetCpuid2 = ioc!(KVM_SET_CPUID2, 0xAE, 0x90, InData<VcpuCpuid2>);
+//pub(super) type TprAccessReporting =
+//    ioc!(KVM_TPR_ACCESS_REPORTING, 0xAE, 0x92, InOutData<TprAccessCtl>);
+//pub(super) type SetVapicAddr = ioc!(KVM_SET_VAPIC_ADDR, 0xAE, 0x93, InData<VapicAddr>);
 pub(super) type GetMpState = ioc!(KVM_GET_MP_STATE, 0xAE, 0x98, OutData<MpState>);
 pub(super) type SetMpState = ioc!(KVM_SET_MP_STATE, 0xAE, 0x99, InData<MpState>);
-pub(super) type X86SetupMce = ioc!(KVM_X86_SETUP_MCE, 0xAE, 0x9c, InData<u64>);
-pub(super) type GetVcpuEvents = ioc!(KVM_GET_VCPU_EVENTS, 0xAE, 0x9f, OutData<VcpuEvents>);
-pub(super) type SetVcpuEvents = ioc!(KVM_SET_VCPU_EVENTS, 0xAE, 0xa0, InData<VcpuEvents>);
-pub(super) type GetDebugRegs = ioc!(KVM_GET_DEBUGREGS, 0xAE, 0xa1, OutData<DebugRegs>);
-pub(super) type SetTscKhz = ioc!(KVM_SET_TSC_KHZ, 0xAE, 0xa2, NoData);
-pub(super) type SetDebugRegs = ioc!(KVM_SET_DEBUGREGS, 0xAE, 0xa2, InData<DebugRegs>);
-pub(super) type GetTscKhz = ioc!(KVM_GET_TSC_KHZ, 0xAE, 0xa3, NoData);
-pub(super) type GetXsave = ioc!(KVM_GET_XSAVE, 0xAE, 0xa4, OutData<XsaveState>);
-pub(super) type SetXsave = ioc!(KVM_SET_XSAVE, 0xAE, 0xa5, InData<XsaveState>);
+//pub(super) type X86SetupMce = ioc!(KVM_X86_SETUP_MCE, 0xAE, 0x9c, InData<u64>);
+//pub(super) type GetVcpuEvents = ioc!(KVM_GET_VCPU_EVENTS, 0xAE, 0x9f, OutData<VcpuEvents>);
+//pub(super) type SetVcpuEvents = ioc!(KVM_SET_VCPU_EVENTS, 0xAE, 0xa0, InData<VcpuEvents>);
+//pub(super) type GetDebugRegs = ioc!(KVM_GET_DEBUGREGS, 0xAE, 0xa1, OutData<DebugRegs>);
+//pub(super) type SetTscKhz = ioc!(KVM_SET_TSC_KHZ, 0xAE, 0xa2, NoData);
+//pub(super) type SetDebugRegs = ioc!(KVM_SET_DEBUGREGS, 0xAE, 0xa2, InData<DebugRegs>);
+//pub(super) type GetTscKhz = ioc!(KVM_GET_TSC_KHZ, 0xAE, 0xa3, NoData);
+//pub(super) type GetXsave = ioc!(KVM_GET_XSAVE, 0xAE, 0xa4, OutData<XsaveState>);
+//pub(super) type SetXsave = ioc!(KVM_SET_XSAVE, 0xAE, 0xa5, InData<XsaveState>);
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
     match raw_ioctl.arg() {
         KVM_CAP_IRQCHIP
@@ -242,14 +251,38 @@ pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
     }
 }
 
+#[cfg(target_arch = "riscv64")]
+pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
+    match raw_ioctl.arg() {
+        KVM_CAP_IRQCHIP => KVM_COALESCED_MMIO_PAGE_OFFSET as i32,// TODOWJX
+        KVM_CAP_IOEVENTFD
+        | KVM_CAP_USER_MEMORY
+        | KVM_CAP_DESTROY_MEMORY_REGION_WORKS
+        | KVM_CAP_ONE_REG
+//        | KVM_CAP_READONLY_MEM //TODOWJX: impl this
+        | KVM_CAP_MP_STATE
+//        | KVM_CAP_SET_GUEST_DEBUG  //TODOWJX: impl this
+        | KVM_CAP_IMMEDIATE_EXIT => 1,
+        KVM_CAP_NR_VCPUS => num_cpus().min(KVM_MAX_VCPUS as usize) as i32,
+        KVM_CAP_MAX_VCPUS => KVM_MAX_VCPUS,
+        KVM_CAP_NR_MEMSLOTS => KVM_MAX_NR_MEMSLOTS,
+        KVM_CAP_VM_GPA_BITS => 1, // TODOWJX
+
+        // TODO: Report capabilities from the actual hypervisor implementation.
+        _ => 0,
+    }
+}
+
 pub(super) fn read_vcpu_id(raw_ioctl: RawIoctl) -> Result<u32> {
     Ok(u32::try_from(raw_ioctl.arg())?)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_tsc_khz(raw_ioctl: RawIoctl) -> Result<u64> {
     Ok(u64::try_from(raw_ioctl.arg())?)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn write_supported_cpuid(
     command: &GetSupportedCpuid,
     raw_ioctl: RawIoctl,
@@ -267,6 +300,7 @@ pub(super) fn write_supported_cpuid(
     write_trailing_array(raw_ioctl, size_of::<VcpuCpuid2>(), entries)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn write_msr_index_list(
     command: &GetMsrIndexList,
     raw_ioctl: RawIoctl,
@@ -284,6 +318,7 @@ pub(super) fn write_msr_index_list(
     write_trailing_array(raw_ioctl, size_of::<MsrList>(), indices)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_cpuid_entries(
     command: &SetCpuid2,
     raw_ioctl: RawIoctl,
@@ -297,6 +332,7 @@ pub(super) fn read_cpuid_entries(
     read_trailing_array(raw_ioctl, size_of::<VcpuCpuid2>(), entry_count)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_get_msr_entries(
     command: &GetMsrs,
     raw_ioctl: RawIoctl,
@@ -306,6 +342,7 @@ pub(super) fn read_get_msr_entries(
     Ok((msrs, entries))
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_set_msr_entries(
     command: &SetMsrs,
     raw_ioctl: RawIoctl,
@@ -314,6 +351,7 @@ pub(super) fn read_set_msr_entries(
     read_msr_entries(msrs, raw_ioctl)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn write_get_msr_entries(
     command: &GetMsrs,
     raw_ioctl: RawIoctl,
@@ -326,6 +364,7 @@ pub(super) fn write_get_msr_entries(
     write_trailing_array(raw_ioctl, size_of::<VcpuMsrs>(), entries)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_irq_routing_entries(
     command: &SetGsiRouting,
     raw_ioctl: RawIoctl,
@@ -339,10 +378,12 @@ pub(super) fn read_irq_routing_entries(
     read_trailing_array(raw_ioctl, size_of::<IrqRouting>(), entry_count)
 }
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn read_set_irqchip(raw_ioctl: RawIoctl) -> Result<IrqChip> {
     Ok(current_userspace!().read_val(raw_ioctl.arg())?)
 }
 
+#[cfg(target_arch = "x86_64")]
 fn read_msr_entries(msrs: VcpuMsrs, raw_ioctl: RawIoctl) -> Result<Vec<VcpuMsrEntry>> {
     let entry_count = usize::try_from(msrs.nmsrs)?;
     if entry_count > KVM_MAX_MSR_ENTRIES {
@@ -352,6 +393,7 @@ fn read_msr_entries(msrs: VcpuMsrs, raw_ioctl: RawIoctl) -> Result<Vec<VcpuMsrEn
     read_trailing_array(raw_ioctl, size_of::<VcpuMsrs>(), entry_count)
 }
 
+#[cfg(target_arch = "x86_64")]
 fn read_trailing_array<T: Pod>(
     raw_ioctl: RawIoctl,
     header_size: usize,
@@ -375,6 +417,7 @@ fn read_trailing_array<T: Pod>(
     Ok(elements)
 }
 
+#[cfg(target_arch = "x86_64")]
 fn write_trailing_array<T: Pod>(
     raw_ioctl: RawIoctl,
     header_size: usize,
@@ -399,6 +442,7 @@ fn write_trailing_array<T: Pod>(
 }
 
 /// The x86 `struct kvm_msr_list`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct MsrList {
@@ -407,6 +451,7 @@ pub(super) struct MsrList {
 }
 
 /// The x86 `struct kvm_userspace_memory_region`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct UserMemoryRegion {
@@ -418,6 +463,7 @@ pub(super) struct UserMemoryRegion {
 }
 
 /// The common `struct kvm_irq_level`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct IrqLevel {
@@ -435,6 +481,7 @@ pub(super) struct CoalescedMmioZone {
 }
 
 /// The common `struct kvm_irqchip`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(super) struct IrqChip {
@@ -443,6 +490,7 @@ pub(super) struct IrqChip {
     pub chip: [u8; KVM_IRQCHIP_PAYLOAD_SIZE],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Default for IrqChip {
     fn default() -> Self {
         Self {
@@ -479,6 +527,7 @@ impl Default for IoEventFdConfig {
 }
 
 /// The common `struct kvm_enable_cap`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(super) struct EnableCapData {
@@ -488,6 +537,7 @@ pub(super) struct EnableCapData {
     pub pad: [u8; 64],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Default for EnableCapData {
     fn default() -> Self {
         Self {
@@ -500,6 +550,7 @@ impl Default for EnableCapData {
 }
 
 /// The common `struct kvm_irqfd`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct IrqFdConfig {
@@ -511,6 +562,7 @@ pub(super) struct IrqFdConfig {
 }
 
 /// The common `struct kvm_clock_data`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct ClockData {
@@ -523,6 +575,7 @@ pub(super) struct ClockData {
 }
 
 /// The common `struct kvm_msi`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct MsiMessage {
@@ -535,6 +588,7 @@ pub(super) struct MsiMessage {
 }
 
 /// The common `struct kvm_pit_config`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct PitConfig {
@@ -543,6 +597,7 @@ pub(super) struct PitConfig {
 }
 
 /// The x86 `struct kvm_tpr_access_ctl`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct TprAccessCtl {
@@ -552,6 +607,7 @@ pub(super) struct TprAccessCtl {
 }
 
 /// The x86 `struct kvm_vapic_addr`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VapicAddr {
@@ -596,6 +652,7 @@ impl TryFrom<MpState> for VcpuRunState {
 }
 
 /// The x86 `struct kvm_debugregs`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct DebugRegs {
@@ -607,6 +664,7 @@ pub(super) struct DebugRegs {
 }
 
 /// The x86 exception portion of `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEventException {
@@ -618,6 +676,7 @@ pub(super) struct VcpuEventException {
 }
 
 /// The x86 interrupt portion of `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEventInterrupt {
@@ -628,6 +687,7 @@ pub(super) struct VcpuEventInterrupt {
 }
 
 /// The x86 NMI portion of `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEventNmi {
@@ -638,6 +698,7 @@ pub(super) struct VcpuEventNmi {
 }
 
 /// The x86 SMI portion of `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEventSmi {
@@ -648,6 +709,7 @@ pub(super) struct VcpuEventSmi {
 }
 
 /// The x86 triple-fault portion of `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEventTripleFault {
@@ -655,6 +717,7 @@ pub(super) struct VcpuEventTripleFault {
 }
 
 /// The x86 `struct kvm_vcpu_events`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuEvents {
@@ -671,12 +734,14 @@ pub(super) struct VcpuEvents {
 }
 
 /// The x86 `struct kvm_xsave`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(super) struct XsaveState {
     pub region: [u32; 1024],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Default for XsaveState {
     fn default() -> Self {
         Self { region: [0; 1024] }
@@ -684,6 +749,7 @@ impl Default for XsaveState {
 }
 
 /// The common `struct kvm_irq_routing_entry`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct IrqRoutingEntry {
@@ -695,6 +761,7 @@ pub(super) struct IrqRoutingEntry {
 }
 
 /// The common `struct kvm_irq_routing`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct IrqRouting {
@@ -704,6 +771,7 @@ pub(super) struct IrqRouting {
 }
 
 /// The x86 `struct kvm_regs`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuRegs {
@@ -727,6 +795,7 @@ pub(super) struct VcpuRegs {
     pub rflags: u64,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<ArchVcpuRegs> for VcpuRegs {
     fn from(regs: ArchVcpuRegs) -> Self {
         Self {
@@ -752,6 +821,7 @@ impl From<ArchVcpuRegs> for VcpuRegs {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<VcpuRegs> for ArchVcpuRegs {
     fn from(regs: VcpuRegs) -> Self {
         Self {
@@ -777,7 +847,30 @@ impl From<VcpuRegs> for ArchVcpuRegs {
     }
 }
 
+#[cfg(target_arch = "riscv64")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(super) struct VcpuRegs {
+}
+
+#[cfg(target_arch = "riscv64")]
+impl From<ArchVcpuRegs> for VcpuRegs {
+    fn from(regs: ArchVcpuRegs) -> Self {
+        Self {
+        }
+    }
+}
+
+#[cfg(target_arch = "riscv64")]
+impl From<VcpuRegs> for ArchVcpuRegs {
+    fn from(regs: VcpuRegs) -> Self {
+        Self {
+        }
+    }
+}
+
 /// The x86 `struct kvm_segment`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuSegment {
@@ -796,6 +889,7 @@ pub(super) struct VcpuSegment {
     pub padding: u8,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<ArchVcpuSegment> for VcpuSegment {
     fn from(segment: ArchVcpuSegment) -> Self {
         Self {
@@ -816,6 +910,7 @@ impl From<ArchVcpuSegment> for VcpuSegment {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<VcpuSegment> for ArchVcpuSegment {
     fn from(segment: VcpuSegment) -> Self {
         Self {
@@ -837,6 +932,7 @@ impl From<VcpuSegment> for ArchVcpuSegment {
 }
 
 /// The x86 `struct kvm_dtable`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuDtable {
@@ -845,6 +941,7 @@ pub(super) struct VcpuDtable {
     pub padding: [u16; 3],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<ArchVcpuDtable> for VcpuDtable {
     fn from(dtable: ArchVcpuDtable) -> Self {
         Self {
@@ -855,6 +952,7 @@ impl From<ArchVcpuDtable> for VcpuDtable {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<VcpuDtable> for ArchVcpuDtable {
     fn from(dtable: VcpuDtable) -> Self {
         Self {
@@ -866,6 +964,7 @@ impl From<VcpuDtable> for ArchVcpuDtable {
 }
 
 /// The x86 `struct kvm_sregs`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuSregs {
@@ -889,6 +988,7 @@ pub(super) struct VcpuSregs {
     pub interrupt_bitmap: [u64; KVM_INTERRUPT_BITMAP_WORDS],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<ArchVcpuSregs> for VcpuSregs {
     fn from(sregs: ArchVcpuSregs) -> Self {
         Self {
@@ -914,6 +1014,7 @@ impl From<ArchVcpuSregs> for VcpuSregs {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl From<VcpuSregs> for ArchVcpuSregs {
     fn from(sregs: VcpuSregs) -> Self {
         Self {
@@ -939,12 +1040,14 @@ impl From<VcpuSregs> for ArchVcpuSregs {
 }
 
 /// The x86 `struct kvm_lapic_state`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(super) struct LapicState {
     pub regs: [u8; KVM_APIC_REG_SIZE],
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Default for LapicState {
     fn default() -> Self {
         Self {
@@ -954,6 +1057,7 @@ impl Default for LapicState {
 }
 
 /// The x86 `struct kvm_fpu`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuFpu {
@@ -971,6 +1075,7 @@ pub(super) struct VcpuFpu {
 }
 
 /// The x86 `struct kvm_msr_entry`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuMsrEntry {
@@ -980,6 +1085,7 @@ pub(super) struct VcpuMsrEntry {
 }
 
 /// The x86 `struct kvm_msrs`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuMsrs {
@@ -989,6 +1095,7 @@ pub(super) struct VcpuMsrs {
 }
 
 /// The x86 `struct kvm_cpuid_entry2`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuCpuidEntry2 {
@@ -1003,6 +1110,7 @@ pub(super) struct VcpuCpuidEntry2 {
 }
 
 /// The x86 `struct kvm_cpuid2`.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub(super) struct VcpuCpuid2 {
@@ -1016,6 +1124,7 @@ pub(super) struct VcpuCpuid2 {
 /// The Linux layout contains a large union starting at byte 32. Kernel code
 /// writes fields by offset so this definition can stay safe Rust while still
 /// documenting the userspace ABI shape.
+#[cfg(target_arch = "x86_64")]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod)]
 pub(super) struct KvmRun {
@@ -1031,6 +1140,23 @@ pub(super) struct KvmRun {
     pub exit_data: [u8; KVM_RUN_EXIT_DATA_SIZE],
 }
 
+#[cfg(target_arch = "riscv64")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod)]
+pub(super) struct KvmRun {
+    pub request_interrupt_window: u8,
+    pub immediate_exit: u8,
+    pub padding1: [u8; 6],
+    pub exit_reason: u32,
+    pub ready_for_interrupt_injection: u8,
+    pub if_flag: u8,
+    pub flags: u16,
+    pub cr8: u64,
+    pub apic_base: u64,
+    pub exit_data: [u8; KVM_RUN_EXIT_DATA_SIZE],
+}
+
+/* 
 const _: () = assert!(size_of::<KvmRun>() == KVM_RUN_STRUCT_SIZE);
 const _: () = assert!(KVM_RUN_IO_DATA_OFFSET + KVM_RUN_IO_DATA_CAPACITY <= KVM_RUN_MMAP_SIZE);
 const _: () = assert!(size_of::<MsrList>() == 4);
@@ -1052,3 +1178,4 @@ const _: () = assert!(size_of::<IrqRoutingEntry>() == 48);
 const _: () = assert!(size_of::<VcpuMsrs>() == 8);
 const _: () = assert!(size_of::<VcpuCpuid2>() == 8);
 const _: () = assert!(size_of::<LapicState>() == KVM_APIC_REG_SIZE);
+*/

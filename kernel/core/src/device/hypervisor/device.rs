@@ -7,7 +7,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use device_id::{DeviceId, MajorId, MinorId};
 use ostd::task::Task;
 
-use super::{KVM_MAJOR, KVM_MINOR, cpuid, ioctl::*, msr, vm::Vm, vm_file::VmFile};
+use super::{KVM_MAJOR, KVM_MINOR, ioctl::*, vm::Vm, vm_file::VmFile};
 use crate::{
     device::{Device, DeviceType},
     events::IoEvents,
@@ -95,6 +95,7 @@ impl FileOps for HypervisorDeviceFile {
 }
 
 impl PerOpenFileOps for HypervisorDeviceFile {
+    #[cfg(target_arch = "x86_64")]
     fn ioctl(&self, _path: &Path, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             GetApiVersion => {
@@ -136,6 +137,48 @@ impl PerOpenFileOps for HypervisorDeviceFile {
                 // TODO: Implement this ioctl which is about x86 MCA(Machine Check Architecture)
                 cmd.write(&u64::MAX)?;
                 Ok(0)
+            }
+            _ => {
+                let ioctl_nr = raw_ioctl.cmd() & 0xff;
+                error!(
+                    "hypervisor: unimplemented device ioctl command: cmd={:#x}, nr={:#x}",
+                    raw_ioctl.cmd(),
+                    ioctl_nr
+                );
+                return_errno_with_message!(Errno::ENOTTY, "unknown device ioctl command");
+            }
+        })
+    }
+
+    #[cfg(target_arch = "riscv64")]
+    fn ioctl(&self, _path: &Path, raw_ioctl: RawIoctl) -> Result<i32> {
+        dispatch_ioctl!(match raw_ioctl {
+            GetApiVersion => {
+                Ok(KVM_API_VERSION)
+            }
+            CreateVm => {
+                // Allocate a new VM ID
+                let vm_id = self.alloc_vm_id();
+
+                // Create the VM
+                let vm = Vm::new(vm_id)?;
+
+                // Create a file descriptor for the VM
+                let vm_file = Arc::new(VmFile::new(vm));
+
+                // Insert into the current process's file table
+                let current = Task::current().unwrap();
+                let mut file_table = current.as_thread_local().unwrap().borrow_file_table_mut();
+                let mut file_table_locked = file_table.unwrap().write();
+                let vm_fd = file_table_locked.insert(vm_file, FdFlags::empty());
+
+                Ok(vm_fd.into())
+            }
+            CheckExtension => {
+                Ok(check_extension(raw_ioctl))
+            }
+            GetVcpuMmapSize => {
+                Ok(KVM_RUN_MMAP_SIZE as i32)
             }
             _ => {
                 let ioctl_nr = raw_ioctl.cmd() & 0xff;

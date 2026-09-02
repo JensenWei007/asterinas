@@ -10,6 +10,7 @@ use ostd::{
 use super::vm_memory::VmMemory;
 use crate::prelude::*;
 
+#[cfg(target_arch = "x86_64")]
 pub(super) fn translate_gva_to_gpa(
     context: &GuestContext,
     vm_memory: &VmMemory,
@@ -44,6 +45,7 @@ pub(super) fn translate_gva_to_gpa(
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 fn translate_long_mode_gva(
     vm_memory: &VmMemory,
     gva: Gvaddr,
@@ -85,6 +87,7 @@ fn translate_long_mode_gva(
     Err(Error::new(Errno::EFAULT))
 }
 
+#[cfg(target_arch = "x86_64")]
 fn translate_pae_gva(vm_memory: &VmMemory, gva: Gvaddr, cr3: Gpaddr) -> Result<Gpaddr> {
     const PTE_PRESENT: u64 = 1 << 0;
     const PTE_HUGE: u64 = 1 << 7;
@@ -115,6 +118,7 @@ fn translate_pae_gva(vm_memory: &VmMemory, gva: Gvaddr, cr3: Gpaddr) -> Result<G
     Ok((pte & PTE_ADDR_MASK) as Gpaddr | (gva & (PAGE_SIZE - 1)))
 }
 
+#[cfg(target_arch = "x86_64")]
 fn translate_legacy_gva(
     vm_memory: &VmMemory,
     gva: Gvaddr,
@@ -145,7 +149,17 @@ fn translate_legacy_gva(
     Ok(usize::try_from(pte & 0xffff_f000)? | (gva & (PAGE_SIZE - 1)))
 }
 
+#[cfg(target_arch = "x86_64")]
 fn is_canonical(address: Gvaddr, width: u32) -> bool {
     let shift = 64 - width;
     ((address << shift) as i64 >> shift) as Gvaddr == address
+}
+
+#[cfg(target_arch = "riscv64")]
+pub(super) fn translate_gva_to_gpa(
+    _context: &GuestContext,
+    _vm_memory: &VmMemory,
+    gva: Gvaddr,
+) -> Result<Gpaddr> {
+    return Ok(gva);
 }

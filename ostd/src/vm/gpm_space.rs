@@ -3,16 +3,23 @@
 use core::ops::Range;
 
 use crate::{
-    arch::vm::{
-        ept::{EptItem, EptPtConfig},
-        vmx::flush_ept_all_contexts_sync,
-    },
     mm::{
         PageProperty, UFrame,
         page_table::{self, PageTable, PageTableFrag},
     },
     prelude::*,
     task::atomic_mode::AsAtomicModeGuard,
+};
+
+#[cfg(target_arch = "x86_64")]
+use crate::arch::vm::{
+    ept::{EptItem as GsItem, EptPtConfig as GsPtConfig},
+    vmx::flush_ept_all_contexts_sync,
+};
+
+#[cfg(target_arch = "riscv64")]
+use crate::arch::vm::{
+    gstage::{GstageItem as GsItem, GstagePtConfig as GsPtConfig}
 };
 
 /// Manages the guest physical memory space of a VM.
@@ -22,7 +29,7 @@ use crate::{
 /// vCPUs in the same VM by passing a reference to
 /// [`super::GuestMode::execute`].
 pub struct GuestPhysMemSpace {
-    pt: PageTable<EptPtConfig>,
+    pt: PageTable<GsPtConfig>,
 }
 
 impl GuestPhysMemSpace {
@@ -32,10 +39,12 @@ impl GuestPhysMemSpace {
     /// Returns an error if the CPU does not support second-stage address
     /// translation.
     pub fn new() -> Result<Self> {
+        #[cfg(target_arch = "x86_64")]
         use crate::arch::vm::vmx::check_ept_support;
+        #[cfg(target_arch = "x86_64")]
         check_ept_support()?;
         Ok(Self {
-            pt: PageTable::<EptPtConfig>::empty(),
+            pt: PageTable::<GsPtConfig>::empty(),
         })
     }
 
@@ -96,6 +105,7 @@ impl GuestPhysMemSpace {
 impl Drop for GuestPhysMemSpace {
     fn drop(&mut self) {
         debug!("hypervisor: release guest memory space.");
+        #[cfg(target_arch = "x86_64")]
         if let Err(err) = flush_ept_all_contexts_sync() {
             error!(
                 "hypervisor: failed to flush EPT translations while dropping guest memory: {:?}",
@@ -105,11 +115,12 @@ impl Drop for GuestPhysMemSpace {
     }
 }
 
-fn flush_and_drop(frags: Vec<PageTableFrag<EptPtConfig>>) {
+fn flush_and_drop(frags: Vec<PageTableFrag<GsPtConfig>>) {
     if frags.is_empty() {
         return;
     }
 
+    #[cfg(target_arch = "x86_64")]
     if let Err(err) = flush_ept_all_contexts_sync() {
         // The EPT entries have already been invalidated. Leaking the fragments
         // is safer than freeing frames that may still be cached by hardware.
@@ -131,7 +142,7 @@ pub type QueriedItem = (Paddr, PageProperty);
 /// It exclusively owns a sub-tree of the page table, preventing others from
 /// reading or modifying the same sub-tree. Two read-only cursors can not be
 /// created from the same guest physical address range either.
-pub struct Cursor<'a>(page_table::Cursor<'a, EptPtConfig>);
+pub struct Cursor<'a>(page_table::Cursor<'a, GsPtConfig>);
 
 impl Cursor<'_> {
     /// Queries the mapping at the current guest physical address.
@@ -177,7 +188,7 @@ impl Cursor<'_> {
 /// It exclusively owns a sub-tree of the page table, preventing others from
 /// reading or modifying the same sub-tree.
 pub struct CursorMut<'a> {
-    pt_cursor: page_table::CursorMut<'a, EptPtConfig>,
+    pt_cursor: page_table::CursorMut<'a, GsPtConfig>,
 }
 
 impl<'a> CursorMut<'a> {
@@ -221,7 +232,7 @@ impl<'a> CursorMut<'a> {
     ///
     /// Panics if the current guest physical address is already mapped.
     pub fn map(&mut self, frame: UFrame, prop: PageProperty) {
-        let item: EptItem = (frame, prop);
+        let item: GsItem = (frame, prop);
 
         // SAFETY: It is safe to map untyped memory into guest physical memory.
         unsafe { self.pt_cursor.map(item) };

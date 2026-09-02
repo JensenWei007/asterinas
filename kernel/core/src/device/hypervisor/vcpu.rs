@@ -1,18 +1,18 @@
 use ostd::{
-    arch::vm::{GuestContext, GuestExitInfo, VcpuRunState, VmxExitReason},
+    arch::vm::{GuestContext, GuestExitInfo, VcpuRunState},
     task::Task,
     vm::{GuestMode, GuestRunResult},
 };
 
 use super::{
-    apic::{Lapic, LapicPort, emulate_apic_mmio},
-    cpuid, cr,
-    ioctl::{LapicState, MpState, VcpuCpuidEntry2, VcpuMsrEntry, VcpuRegs, VcpuSregs},
+    //apic::{Lapic, LapicPort, emulate_apic_mmio},
+    //cpuid, cr,
+    ioctl::{MpState, VcpuRegs},
     ioeventfd::IoEventAddressSpace,
-    kvmclock::KvmClock,
-    mmio::{MmioDirection, MmioInstruction, decode_current_mmio_instruction},
-    msr::{self, MsrAccess},
-    pio::{PioDirection, PioOperation},
+    //kvmclock::KvmClock,
+    //mmio::{MmioDirection, MmioInstruction, decode_current_mmio_instruction},
+    //msr::{self, MsrAccess},
+    //pio::{PioDirection, PioOperation},
     vm::Vm,
 };
 use crate::prelude::*;
@@ -21,17 +21,20 @@ const HLT_WAKEUP_WAIT_TSC_DIVISOR: u64 = 10_000;
 const HLT_WAKEUP_WAIT_FALLBACK_TICKS: u64 = 250_000;
 const MAX_PIO_IOEVENTFD_BATCH_BYTES: usize = PAGE_SIZE;
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingPioOperation {
     pub operation: PioOperation,
     pub count: u32,
 }
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingMmioOperation {
     pub instruction: MmioInstruction,
 }
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Clone, Copy, Debug)]
 pub(super) enum PendingOperation {
     Pio(PendingPioOperation),
@@ -44,12 +47,16 @@ pub struct Vcpu {
     pub(super) guest_context: Mutex<GuestContext>,
     guest_mode: GuestMode,
     run_lock: Mutex<()>,
+    #[cfg(target_arch = "x86_64")]
     pub(super) lapic: LapicPort,
+    #[cfg(target_arch = "x86_64")]
     kvmclock: Mutex<KvmClock>,
+    #[cfg(target_arch = "x86_64")]
     cpuid_entries: Mutex<Vec<VcpuCpuidEntry2>>,
 }
 
 impl Vcpu {
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn new(id: u32, vm: &Arc<Vm>, lapic: Lapic) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             id,
@@ -63,6 +70,18 @@ impl Vcpu {
         }))
     }
 
+    #[cfg(target_arch = "riscv64")]
+    pub(super) fn new(id: u32, vm: &Arc<Vm>) -> Result<Arc<Self>> {
+        Ok(Arc::new(Self {
+            id,
+            vm: Arc::downgrade(vm),
+            guest_context: Mutex::new(GuestContext::new(id)?),
+            guest_mode: GuestMode::new()?,
+            run_lock: Mutex::new(()),
+        }))
+    }
+
+    #[cfg(target_arch = "x86_64")]
     pub fn lapic(&self) -> SpinLockGuard<'_, Lapic, ostd::sync::PreemptDisabled> {
         self.lapic.lock()
     }
@@ -77,6 +96,7 @@ impl Vcpu {
             .ok_or_else(|| Error::with_message(Errno::ENOENT, "vm not found"))
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn run<F>(self: &Arc<Self>, mut immediate_exit: F) -> Result<Option<GuestExitInfo>>
     where
         F: FnMut() -> Result<bool>,
@@ -197,6 +217,39 @@ impl Vcpu {
         }
     }
 
+    #[cfg(target_arch = "riscv64")]
+    pub(super) fn run<F>(self: &Arc<Self>, mut immediate_exit: F) -> Result<Option<GuestExitInfo>>
+    where
+        F: FnMut() -> Result<bool>,
+    {
+        let vm = self.vm()?;
+        let _run_guard = self.run_lock.lock();
+
+        loop {
+            if immediate_exit()? {
+                return Ok(None);
+            }
+
+            /* 
+            let run_result = {
+                let mut context = self.guest_context();
+                match self.guest_mode.execute(
+                    &mut context,
+                    vm.memory().guest_mem(),
+                ) {
+                    Ok(exit_info) => exit_info,
+                    Err(err) => {
+                        error!("hypervisor: GuestMode::execute failed: {:?}", err);
+                        return Err(err.into());
+                    }
+                }
+            };
+            */
+            return Ok(None);
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn complete_pio_operation(
         &self,
         operation: PendingPioOperation,
@@ -211,6 +264,7 @@ impl Vcpu {
         )
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn complete_mmio_operation(
         &self,
         operation: PendingMmioOperation,
@@ -230,6 +284,7 @@ impl Vcpu {
     ///
     /// Returns `Ok(true)` if the PIO exit was handled by signaling an ioeventfd,
     ///         `Ok(false)` otherwise.
+    #[cfg(target_arch = "x86_64")]
     fn handle_pio_ioeventfd(&self, vm: &Vm, exit_info: &GuestExitInfo) -> Result<bool> {
         let context = self.guest_context();
         let Some(operation) = PioOperation::decode(&context, vm.memory(), exit_info)? else {
@@ -271,6 +326,7 @@ impl Vcpu {
         Ok(true)
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn handle_mmio_ioeventfd(&self, vm: &Vm, exit_info: &GuestExitInfo) -> Result<bool> {
         if exit_info.exit_qualification & 0b111 != 0b010 {
             return Ok(false);
@@ -306,7 +362,7 @@ impl Vcpu {
         if context.is_running() {
             return_errno_with_message!(Errno::EBUSY, "cannot get regs while vCPU is running");
         }
-        self.guest_mode.synchronize_state(&mut context)?;
+        //self.guest_mode.synchronize_state(&mut context)?;
         Ok(context.regs().into())
     }
 
@@ -319,6 +375,7 @@ impl Vcpu {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn get_sregs(&self) -> Result<VcpuSregs> {
         let mut context = self.guest_context.lock();
         if context.is_running() {
@@ -328,6 +385,7 @@ impl Vcpu {
         Ok(context.sregs().into())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn set_sregs(&self, sregs: VcpuSregs) -> Result<()> {
         let mut context = self.guest_context.lock();
         if context.is_running() {
@@ -339,6 +397,7 @@ impl Vcpu {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn set_cpuid_entries(&self, entries: Vec<VcpuCpuidEntry2>) -> Result<()> {
         let context = self.guest_context.lock();
         if context.is_running() {
@@ -350,11 +409,13 @@ impl Vcpu {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn cpuid_result(&self, function: u32, index: u32) -> VcpuCpuidEntry2 {
         let entries = self.cpuid_entries.lock();
         cpuid::cpuid_entry(entries.as_slice(), function, index)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn get_msrs(&self, entries: &mut [VcpuMsrEntry]) -> Result<i32> {
         let mut context = self.guest_context.lock();
         if context.is_running() {
@@ -372,6 +433,7 @@ impl Vcpu {
         Ok(handled_count)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn set_msrs(&self, entries: &[VcpuMsrEntry]) -> Result<i32> {
         {
             let context = self.guest_context.lock();
@@ -389,26 +451,31 @@ impl Vcpu {
         Ok(handled_count)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn read_kvmclock_msr(&self, index: u32) -> u64 {
         self.kvmclock.lock().read_msr(index)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn write_kvmclock_msr(&self, index: u32, value: u64) -> Result<()> {
         let vm = self.vm()?;
         let guest_tsc = self.guest_context.lock().guest_tsc();
         self.kvmclock.lock().write_msr(index, value, &vm, guest_tsc)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn update_kvmclock(&self) -> Result<()> {
         let vm = self.vm()?;
         let guest_tsc = self.guest_context.lock().guest_tsc();
         self.kvmclock.lock().update_system_time(&vm, guest_tsc)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn get_tsc_khz(&self) -> Result<i32> {
         Ok(i32::try_from(current_tsc_khz()?)?)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn set_tsc_khz(&self, khz: u64) -> Result<()> {
         if khz == current_tsc_khz()? {
             return Ok(());
@@ -417,6 +484,7 @@ impl Vcpu {
         return_errno_with_message!(Errno::EINVAL, "TSC frequency scaling is not supported");
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn get_lapic(&self) -> Result<LapicState> {
         {
             let context = self.guest_context.lock();
@@ -428,6 +496,7 @@ impl Vcpu {
         Ok(self.lapic().to_kvm_state())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn set_lapic(&self, state: &LapicState) -> Result<()> {
         {
             let context = self.guest_context.lock();
@@ -450,11 +519,13 @@ impl Vcpu {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn receive_sipi(&self, vector: u8) {
         let mut context = self.guest_context.lock();
         context.receive_sipi(vector);
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn receive_init(&self) {
         let processor_signature = self.cpuid_result(1, 0).eax;
         let mut context = self.guest_context.lock();
@@ -463,10 +534,12 @@ impl Vcpu {
         }
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn wait_for_sipi_wakeup(&self) -> bool {
         !self.guest_context.lock().run_state().waits_for_startup()
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn wait_for_hlt_wakeup(&self) -> bool {
         use ostd::arch::{read_tsc, tsc_freq};
         let wait_max_ticks = match tsc_freq() {
@@ -504,6 +577,7 @@ impl Drop for Vcpu {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 fn current_tsc_khz() -> Result<u64> {
     let khz = ostd::arch::tsc_freq() / 1_000;
     if khz == 0 {

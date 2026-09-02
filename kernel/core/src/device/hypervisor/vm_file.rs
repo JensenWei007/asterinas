@@ -42,6 +42,7 @@ impl VmFile {
         }
     }
 
+    /* 
     fn set_user_memory_region(&self, region: UserMemoryRegion) -> Result<()> {
         let memory_size = usize::try_from(region.memory_size)?;
         if region.flags & !KVM_MEM_READONLY != 0 {
@@ -79,7 +80,7 @@ impl VmFile {
             .set_region(region.slot, guest_start, memory_size, frames, prop)?;
 
         Ok(())
-    }
+    }*/
 
     fn get_eventfd(&self, raw_fd: i32) -> Result<Arc<KernelEventFile>> {
         let fd = FileDesc::try_from(raw_fd)?;
@@ -123,6 +124,7 @@ impl FileLike for VmFile {
         return_errno_with_message!(Errno::EINVAL, "cannot write to VM file");
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             CheckExtension => {
@@ -247,6 +249,64 @@ impl FileLike for VmFile {
             cmd @ EnableCap => {
                 let cap = cmd.read()?;
                 self.vm.enable_cap(cap)?;
+                Ok(0)
+            }
+            GetStatsFd => {
+                return_errno_with_message!(Errno::ENOTTY, "KVM stats fd is not supported");
+            }
+            _ => {
+                let ioctl_nr = raw_ioctl.cmd() & 0xff;
+                error!(
+                    "hypervisor: unimplemented VM ioctl command: cmd={:#x}, nr={:#x}",
+                    raw_ioctl.cmd(),
+                    ioctl_nr
+                );
+                return_errno_with_message!(Errno::ENOTTY, "unknown VM ioctl command");
+            }
+        })
+    }
+
+    #[cfg(target_arch = "riscv64")]
+    fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
+        dispatch_ioctl!(match raw_ioctl {
+            CheckExtension => {
+                Ok(check_extension(raw_ioctl))
+            }
+            CreateVcpu => {
+                let vcpu_id = read_vcpu_id(raw_ioctl)?;
+
+                // Create a file descriptor for the VCPU
+                let vcpu_file = Arc::new(VcpuFile::new(self.vm.clone(), vcpu_id)?);
+
+                // Insert into the current process's file table
+                let current = Task::current().unwrap();
+                let mut file_table = current.as_thread_local().unwrap().borrow_file_table_mut();
+                let mut file_table_locked = file_table.unwrap().write();
+                let vcpu_fd = file_table_locked.insert(vcpu_file, FdFlags::empty());
+
+                Ok(vcpu_fd.into())
+            }
+            /* 
+            cmd @ SetUserMemoryRegion => {
+                let region: UserMemoryRegion = cmd.read()?;
+                return_errno_with_message!(Errno::ENOTTY, "unknown VM ioctl command, setuser");
+                //self.set_user_memory_region(region)?;
+                Ok(0)
+            }*/
+            cmd @ RegisterCoalescedMmio => {
+                let _zone = cmd.read()?;
+                // TODO: Implement coalesced MMIO registration
+                Ok(0)
+            }
+            cmd @ UnregisterCoalescedMmio => {
+                let _zone = cmd.read()?;
+                // TODO: Implement coalesced MMIO unregistration
+                Ok(0)
+            }
+            cmd @ IoEventFd => {
+                let ioeventfd: IoEventFdConfig = cmd.read()?;
+                let eventfd = self.get_eventfd(ioeventfd.fd)?;
+                self.vm.configure_ioeventfd(ioeventfd, eventfd)?;
                 Ok(0)
             }
             GetStatsFd => {

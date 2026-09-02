@@ -1,17 +1,17 @@
 use super::{
-    apic::{
-        IOAPIC_NUM_PINS, Icr, Ioapic, IrqLineLevel, Lapic, TriggerMode, icr_matches_destination,
-    },
+    //apic::{
+    //    IOAPIC_NUM_PINS, Icr, Ioapic, IrqLineLevel, Lapic, TriggerMode, icr_matches_destination,
+    //},
     ioctl::{
-        ClockData, EnableCapData, IoEventFdConfig, IrqFdConfig, IrqLevel, IrqRoutingEntry,
+        IoEventFdConfig,
         KVM_CAP_MAX_VCPU_ID, KVM_CAP_SPLIT_IRQCHIP, KVM_IOEVENTFD_FLAG_DEASSIGN,
         KVM_IRQ_ROUTING_IRQCHIP, KVM_IRQ_ROUTING_MSI, KVM_IRQCHIP_IOAPIC, KVM_IRQFD_FLAG_DEASSIGN,
-        KVM_IRQFD_FLAG_RESAMPLE, MsiMessage,
+        KVM_IRQFD_FLAG_RESAMPLE,
     },
     ioeventfd::{
         IoEventAddressSpace, IoEventFdBinding, validate_config as validate_ioeventfd_config,
     },
-    irqfd::IrqFdBinding,
+    //irqfd::IrqFdBinding,
     vcpu::Vcpu,
     vm_memory::VmMemory,
 };
@@ -22,6 +22,7 @@ const KVM_CLOCK_HOST_TSC: u32 = 1 << 3;
 
 /// VM-wide state used to recognize userspace writes that intend to align the
 /// TSCs of multiple vCPUs.
+#[cfg(target_arch = "x86_64")]
 #[derive(Debug, Default)]
 struct TscWriteState {
     initialized: bool,
@@ -31,6 +32,7 @@ struct TscWriteState {
     generation_offset: i64,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl TscWriteState {
     fn synchronize(&mut self, guest_tsc: u64, host_tsc: u64, tsc_freq: u64) -> i64 {
         let candidate_offset = (guest_tsc as i64).wrapping_sub(host_tsc as i64);
@@ -52,6 +54,7 @@ impl TscWriteState {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Clone, Copy, Debug)]
 enum IrqRoute {
     Ioapic {
@@ -68,34 +71,45 @@ pub(super) struct Vm {
     pub(super) id: u32,
     memory: VmMemory,
     vcpus: Mutex<BTreeMap<u32, Arc<Vcpu>>>,
+    #[cfg(target_arch = "x86_64")]
     ioapic: Mutex<Ioapic>,
     irqchip_created: Mutex<bool>,
+    #[cfg(target_arch = "x86_64")]
     irq_routes: Mutex<BTreeMap<u32, Vec<IrqRoute>>>,
     ioeventfds: Mutex<Vec<Arc<IoEventFdBinding>>>,
+    #[cfg(target_arch = "x86_64")]
     irqfds: Mutex<Vec<Arc<IrqFdBinding>>>,
     /// Coordinates host-initiated TSC writes across all vCPUs in this VM.
+    #[cfg(target_arch = "x86_64")]
     tsc_write_state: Mutex<TscWriteState>,
     /// Guest monotonic time equals host monotonic time plus this offset.
+    #[cfg(target_arch = "x86_64")]
     kvmclock_offset: Mutex<i128>,
 }
 
 impl Vm {
     pub fn new(id: u32) -> Result<Arc<Self>> {
-        let kvmclock_offset = -i128::from(monotonic_nanos());
+        //let kvmclock_offset = -i128::from(monotonic_nanos());
         Ok(Arc::new(Self {
             id,
             memory: VmMemory::new()?,
             vcpus: Mutex::new(BTreeMap::new()),
+            #[cfg(target_arch = "x86_64")]
             ioapic: Mutex::new(Ioapic::default()),
             irqchip_created: Mutex::new(false),
+            #[cfg(target_arch = "x86_64")]
             irq_routes: Mutex::new(BTreeMap::new()),
             ioeventfds: Mutex::new(Vec::new()),
+            #[cfg(target_arch = "x86_64")]
             irqfds: Mutex::new(Vec::new()),
+            #[cfg(target_arch = "x86_64")]
             tsc_write_state: Mutex::new(TscWriteState::default()),
+            #[cfg(target_arch = "x86_64")]
             kvmclock_offset: Mutex::new(kvmclock_offset),
         }))
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn ioapic(&self) -> MutexGuard<'_, Ioapic> {
         self.ioapic.lock()
     }
@@ -110,12 +124,16 @@ impl Vm {
             return_errno_with_message!(Errno::EEXIST, "vCPU already exists");
         }
 
+        #[cfg(target_arch = "x86_64")]
         let vcpu = Vcpu::new(vcpu_id, self, Lapic::new(vcpu_id))?;
+        #[cfg(target_arch = "riscv64")]
+        let vcpu = Vcpu::new(vcpu_id, self)?;
         vcpus.insert(vcpu_id, vcpu.clone());
         drop(vcpus);
         Ok(vcpu)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn create_irqchip(&self) -> Result<()> {
         // TODO: Add PIC state and stricter KVM irqchip lifecycle checks.
         *self.ioapic.lock() = Ioapic::default();
@@ -124,6 +142,7 @@ impl Vm {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn set_clock(&self, clock: ClockData) -> Result<()> {
         let mut kvmclock_offset = self.kvmclock_offset.lock();
         let host_monotonic = monotonic_nanos();
@@ -137,6 +156,7 @@ impl Vm {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn get_clock(&self) -> ClockData {
         let mut clock = ClockData::default();
         clock.clock = self.kvmclock_nanos();
@@ -149,6 +169,7 @@ impl Vm {
         clock
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn kvmclock_nanos(&self) -> u64 {
         let kvmclock_offset = self.kvmclock_offset.lock();
         let host_monotonic = monotonic_nanos();
@@ -168,6 +189,7 @@ impl Vm {
     /// KVM_SET_MSRS. Treat nearby writes, and zero writes in particular, as a
     /// request to join one TSC generation. Guest WRMSR instructions bypass
     /// this method and keep their per-vCPU semantics.
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn synchronize_tsc_write(&self, guest_tsc: u64) -> i64 {
         let host_tsc = ostd::arch::read_tsc();
         let tsc_freq = ostd::arch::tsc_freq();
@@ -176,6 +198,7 @@ impl Vm {
             .synchronize(guest_tsc, host_tsc, tsc_freq)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn enable_cap(&self, cap: EnableCapData) -> Result<()> {
         match usize::try_from(cap.cap)? {
             KVM_CAP_SPLIT_IRQCHIP => {
@@ -188,6 +211,7 @@ impl Vm {
         }
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn set_gsi_routing(&self, entries: &[IrqRoutingEntry]) -> Result<()> {
         self.ensure_irqchip_created()?;
 
@@ -239,6 +263,7 @@ impl Vm {
     ///
     /// Returns `Ok(true)` if the interrupt was delivered to a vCPU.
     ///         `Ok(false)` if the interrupt was not delivered to any vCPU.
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn set_irq_line(&self, irq_level: IrqLevel) -> Result<bool> {
         self.ensure_irqchip_created()?;
         let line_level = if irq_level.level == 0 {
@@ -376,6 +401,7 @@ impl Vm {
         true
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn configure_irqfd(
         self: &Arc<Self>,
         config: IrqFdConfig,
@@ -419,6 +445,7 @@ impl Vm {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn inject_gsi(&self, gsi: u32) -> Result<bool> {
         self.ensure_irqchip_created()?;
         let routes = self
@@ -449,6 +476,7 @@ impl Vm {
         Ok(delivered)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn signal_msi(&self, message: MsiMessage) -> Result<bool> {
         if message.flags != 0 {
             return_errno_with_message!(Errno::EINVAL, "MSI flags are not supported");
@@ -457,6 +485,7 @@ impl Vm {
         self.inject_msi(message.address_lo, message.address_hi, message.data)
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn inject_msi(&self, address_lo: u32, _address_hi: u32, data: u32) -> Result<bool> {
         const APIC_MSI_ADDRESS_BASE: u32 = 0xfee0_0000;
         const APIC_MSI_ADDRESS_MASK: u32 = 0xfff0_0000;
@@ -498,6 +527,7 @@ impl Vm {
         return_errno_with_message!(Errno::EINVAL, "in-kernel irqchip has not been created");
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn set_ioapic_pin(&self, pin: usize, line_level: IrqLineLevel) -> Result<bool> {
         if pin >= IOAPIC_NUM_PINS {
             return_errno_with_message!(
@@ -514,6 +544,7 @@ impl Vm {
         Ok(delivered)
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub(super) fn complete_ioapic_interrupt(&self, vector: u8) {
         let vcpus = self.vcpus.lock().values().cloned().collect::<Vec<_>>();
         let mut lapics = vcpus.iter().map(|vcpu| vcpu.lapic()).collect::<Vec<_>>();
@@ -528,6 +559,7 @@ impl Vm {
         }
     }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn inject_ipi(&self, icr: Icr) -> Result<()> {
         let vcpus: Vec<_> = self
             .vcpus
@@ -583,27 +615,30 @@ impl Vm {
 
 impl Drop for Vm {
     fn drop(&mut self) {
-        let bindings = self.irqfds.get_mut().drain(..).collect::<Vec<_>>();
-        for binding in bindings {
-            binding.deactivate();
-        }
+        //let bindings = self.irqfds.get_mut().drain(..).collect::<Vec<_>>();
+        //for binding in bindings {
+        //    binding.deactivate();
+        //}
         debug!("hypervisor: release VM {}.", self.id);
     }
 }
 
 /// Returns monotonic time in nanoseconds, saturating at `u64::MAX`.
+#[cfg(target_arch = "x86_64")]
 pub(super) fn monotonic_nanos() -> u64 {
     let nanos = aster_time::read_monotonic_time().as_nanos();
     saturating_u128_to_u64(nanos)
 }
 
 /// Returns realtime since the Unix epoch in nanoseconds, saturating at `u64::MAX`.
+#[cfg(target_arch = "x86_64")]
 pub(super) fn realtime_nanos() -> Result<u64> {
     let duration =
         crate::time::SystemTime::now().duration_since(&crate::time::SystemTime::UNIX_EPOCH)?;
     Ok(saturating_u128_to_u64(duration.as_nanos()))
 }
 
+#[cfg(target_arch = "x86_64")]
 fn saturating_u128_to_u64(nanos: u128) -> u64 {
     if nanos > u128::from(u64::MAX) {
         u64::MAX

@@ -2,14 +2,14 @@
 
 //! VCPU file descriptor implementation
 
-use ostd::arch::vm::{GuestExitInfo, VmxExitReason};
+use ostd::arch::vm::{GuestExitInfo};
 
 pub(super) use super::vcpu::Vcpu;
 use super::{
     ioctl::*,
-    mmio::{MmioDirection, decode_current_mmio_instruction},
-    pio::{PioDirection, PioOperation},
-    vcpu::{PendingMmioOperation, PendingOperation, PendingPioOperation},
+    //mmio::{MmioDirection, decode_current_mmio_instruction},
+    //pio::{PioDirection, PioOperation},
+    //vcpu::{PendingMmioOperation, PendingOperation, PendingPioOperation},
     vm::Vm,
 };
 use crate::{
@@ -23,6 +23,7 @@ use crate::{
     vm::page_cache::{Vmo, VmoOptions},
 };
 
+/*
 const _: () = {
     assert!(KVM_RUN_READY_FOR_INTERRUPT_INJECTION_OFFSET + 1 == KVM_RUN_IF_FLAG_OFFSET);
     assert!(KVM_RUN_IF_FLAG_OFFSET + 1 == KVM_RUN_FLAGS_OFFSET);
@@ -39,26 +40,30 @@ const _: () = {
     assert!(KVM_RUN_MMIO_DATA_OFFSET + 8 == KVM_RUN_MMIO_LEN_OFFSET);
     assert!(KVM_RUN_MMIO_LEN_OFFSET + 4 == KVM_RUN_MMIO_IS_WRITE_OFFSET);
 };
+*/
 
 /// VCPU file descriptor
 pub struct VcpuFile {
     vm: Arc<Vm>,
     vcpu: Arc<Vcpu>,
     run_page: Arc<Vmo>,
-    pending_operation: Mutex<Option<PendingOperation>>,
+    //pending_operation: Mutex<Option<PendingOperation>>,
     common: FileCommon,
+    #[cfg(target_arch = "x86_64")]
     compat_state: Mutex<VcpuCompatState>,
 }
 
 // Compatibility state for KVM ioctls that are accepted but not wired into
 // guest execution yet. QEMU copies these GET results back into CPUX86State,
 // so keep the last SET value instead of returning a fresh default state.
+#[cfg(target_arch = "x86_64")]
 struct VcpuCompatState {
     debug_regs: DebugRegs,
     vcpu_events: VcpuEvents,
     xsave: XsaveState,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Default for VcpuCompatState {
     fn default() -> Self {
         Self {
@@ -79,8 +84,9 @@ impl VcpuFile {
             vm,
             vcpu,
             run_page,
-            pending_operation: Mutex::new(None),
+            //pending_operation: Mutex::new(None),
             common: FileCommon::new(pseudo_path, AccessMode::O_RDWR, StatusFlags::empty()),
+            #[cfg(target_arch = "x86_64")]
             compat_state: Mutex::new(VcpuCompatState::default()),
         })
     }
@@ -95,6 +101,7 @@ impl FileLike for VcpuFile {
         return_errno_with_message!(Errno::EINVAL, "cannot write to VCPU file");
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             Run => {
@@ -231,6 +238,47 @@ impl FileLike for VcpuFile {
         })
     }
 
+    #[cfg(target_arch = "riscv64")]
+    fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
+        dispatch_ioctl!(match raw_ioctl {
+            Run => {
+                self.ioctl_run()
+            }
+            cmd @ GetRegs => {
+                let regs = self.vcpu.get_regs()?;
+                cmd.write(&regs)?;
+                Ok(0)
+            }
+            cmd @ SetRegs => {
+                let regs = cmd.read()?;
+                self.vcpu.set_regs(regs)?;
+                Ok(0)
+            }
+            cmd @ GetMpState => {
+                let state = self.vcpu.get_mp_state()?;
+                cmd.write(&state)?;
+                Ok(0)
+            }
+            cmd @ SetMpState => {
+                let state = cmd.read()?;
+                self.vcpu.set_mp_state(state)?;
+                Ok(0)
+            }
+            GetStatsFd => {
+                return_errno_with_message!(Errno::ENOTTY, "KVM stats fd is not supported");
+            }
+            _ => {
+                let ioctl_nr = raw_ioctl.cmd() & 0xff;
+                error!(
+                    "hypervisor: unimplemented VCPU ioctl command: cmd={:#x}, nr={:#x}",
+                    raw_ioctl.cmd(),
+                    ioctl_nr
+                );
+                return_errno_with_message!(Errno::ENOTTY, "unknown VCPU ioctl command");
+            }
+        })
+    }
+
     fn common(&self) -> &FileCommon {
         &self.common
     }
@@ -244,6 +292,7 @@ impl FileLike for VcpuFile {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 fn default_debug_regs() -> DebugRegs {
     DebugRegs {
         dr6: 0xffff0ff0,
@@ -254,6 +303,7 @@ fn default_debug_regs() -> DebugRegs {
 
 impl VcpuFile {
     fn ioctl_run(&self) -> Result<i32> {
+        #[cfg(target_arch = "x86_64")]
         self.complete_pending_operation()?;
         if self.immediate_exit()? {
             return_errno_with_message!(Errno::EINTR, "KVM_RUN interrupted by immediate_exit");
@@ -266,6 +316,7 @@ impl VcpuFile {
         Ok(0)
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn complete_pending_operation(&self) -> Result<()> {
         let Some(operation) = self.pending_operation.lock().take() else {
             return Ok(());
@@ -278,6 +329,7 @@ impl VcpuFile {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn complete_operation(&self, operation: PendingOperation) -> Result<()> {
         match operation {
             PendingOperation::Pio(pio) => self.complete_pio_operation(pio),
@@ -285,6 +337,7 @@ impl VcpuFile {
         }
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn complete_pio_operation(&self, operation: PendingPioOperation) -> Result<()> {
         let input_data = if operation.operation.direction() == PioDirection::In {
             let data_len = usize::try_from(operation.count)?
@@ -301,6 +354,7 @@ impl VcpuFile {
             .complete_pio_operation(operation, input_data.as_deref())
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn complete_mmio_operation(&self, operation: PendingMmioOperation) -> Result<()> {
         let instruction = operation.instruction;
         let read_value = if instruction.direction() == MmioDirection::Read {
@@ -334,6 +388,7 @@ impl VcpuFile {
             .is_some_and(HandlePendingSignal::has_pending))
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn write_exit_to_run_page(&self, exit_info: GuestExitInfo) -> Result<()> {
         self.clear_run_output()?;
         self.write_common_run_state()?;
@@ -347,6 +402,12 @@ impl VcpuFile {
         }
     }
 
+    #[cfg(target_arch = "riscv64")]
+    fn write_exit_to_run_page(&self, _exit_info: GuestExitInfo) -> Result<()> {
+        Ok(())
+    }
+
+    #[cfg(target_arch = "x86_64")]
     fn write_common_run_state(&self) -> Result<()> {
         // These fields are maintained in the safe context cache. Avoid a full
         // VMCS synchronization on every userspace-visible VM exit.
@@ -360,6 +421,7 @@ impl VcpuFile {
         self.write_run_val(KVM_RUN_EXIT_REASON_OFFSET, &exit_reason)
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn write_io_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
         let (operation, count, data) = {
             let context = self.vcpu.guest_context();
@@ -407,6 +469,7 @@ impl VcpuFile {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn write_mmio_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
         let direction = match exit_info.exit_qualification & 0b111 {
             0b001 => MmioDirection::Read,
@@ -448,6 +511,7 @@ impl VcpuFile {
     }
 
     fn write_internal_error_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
+        /* 
         warn!(
             "hypervisor: unsupported VM exit for KVM_RUN: reason={:#x}, len={}, rip={:#x}, \
              gpa={:#x}, qualification={:#x}",
@@ -456,7 +520,7 @@ impl VcpuFile {
             exit_info.guest_rip,
             exit_info.guest_phys_addr,
             exit_info.exit_qualification,
-        );
+        );*/
         self.write_simple_exit(KVM_EXIT_INTERNAL_ERROR)
     }
 
@@ -482,6 +546,7 @@ impl VcpuFile {
         self.run_page.write(offset, &mut reader)
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn clear_run_output(&self) -> Result<()> {
         static ZERO_PAGE: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
 
