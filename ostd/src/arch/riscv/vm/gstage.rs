@@ -11,6 +11,7 @@ use crate::mm::{
 pub enum GstagePtConfig {}
 
 // use sv39*4
+pub const GSTAGE_MAX_PGD_LEVELS: usize = 3;
 const NR_LEVELS: usize = 3;
 const ADDRESS_WIDTH: usize = 39;
 
@@ -165,4 +166,88 @@ unsafe impl PteTrait for PageTableEntry {
             PteScalar::PageTable(paddr, self.pt_flags())
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum HgatpMode {
+    Off = 0,
+    Sv32x4 = 1,
+    Sv39x4 = 8,
+    Sv48x4 = 9,
+    Sv57x4 = 10,
+}
+
+impl HgatpMode {
+    pub fn from_pgd_levels(levels: usize) -> Self {
+        match levels {
+            2 => HgatpMode::Sv32x4,
+            3 => HgatpMode::Sv39x4,
+            4 => HgatpMode::Sv48x4,
+            5 => HgatpMode::Sv57x4,
+            _ => HgatpMode::Off,
+        }
+    }
+}
+
+pub const HGATP_PPN:usize = 0x00000FFFFFFFFFFF;
+pub const HGATP_VMID_SHIFT:usize = 44;
+pub const HGATP_VMID:usize = 0x3FFF000000000000;
+pub const HGATP_MODE_SHIFT:usize = 60;
+
+/// 执行 HFENCE.GVMA，使用指定的寄存器（直接写入 .insn）
+/// 
+/// # 参数
+/// - `rs1`: 寄存器编号 (0-31)
+/// - `rs2`: 寄存器编号 (0-31)
+/// 
+/// # 格式
+/// .insn r opcode, func3, func7, rd, rs1, rs2
+/// HFENCE.GVMA: opcode=0x73, func3=0, func7=49, rd=x0
+#[inline(always)]
+pub unsafe fn hfence_gvma_asm(rs1: u8, rs2: u8) {
+    let rs1_val: usize = rs1.into();
+    let rs2_val: usize = rs2.into();
+    
+    unsafe {
+        core::arch::asm!(
+            // .insn r opcode, func3, func7, rd, rs1, rs2
+            ".insn r 0x73, 0, 49, x0, {rs1}, {rs2}",
+            rs1 = in(reg) rs1_val,
+            rs2 = in(reg) rs2_val,
+            options(nostack, preserves_flags)
+        );
+    }
+}
+
+
+/// HFENCE.VVMA - Hypervisor Virtual-Virtual-Memory Fence 指令编码
+///
+/// 用于 VS-stage 地址转换（guest virtual -> guest physical）的屏障指令
+///
+/// # 参数
+/// - `rs1`: 源寄存器编号 (0-31)
+///   - 若 rs1 = x0: fence 所有 guest 虚拟地址
+///   - 若 rs1 ≠ x0: 仅 fence 指定的 guest 虚拟地址
+/// - `rs2`: 源寄存器编号 (0-31)
+///   - 若 rs2 = x0: fence 所有 ASID
+///   - 若 rs2 ≠ x0: 仅 fence 指定的 ASID
+///
+/// # 注意
+/// - 仅在 M-mode 或 HS-mode 时有效
+/// - 应用到当前 VM (由 hgatp.VMID 标识)
+/// - 在 V=1 时执行会触发 virtual-instruction exception
+#[inline(always)]
+pub fn hfence_vvma(rs1: u8, rs2: u8) -> u32 {
+    const OPCODE_SYSTEM: u32 = 0x73;
+    const FUNC3: u32 = 0;
+    const FUNC7: u32 = 17;  // HFENCE.VVMA 的 FUNC7 是 17 (0b0010001)
+    const RD: u32 = 0;
+    
+    OPCODE_SYSTEM
+        | (FUNC3 << 12)
+        | (FUNC7 << 25)
+        | (RD << 7)
+        | ((rs1 as u32) << 15)
+        | ((rs2 as u32) << 20)
 }

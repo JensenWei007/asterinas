@@ -10,11 +10,37 @@ pub(crate) mod exit;
 
 pub(crate) mod types;
 
+pub(crate) mod csr;
+pub(crate) mod vmid;
+pub(crate) mod tlb;
+
 pub use self::{
     context::{GuestContext, VcpuRunState},
     exit::GuestExitInfo,
     types::{
         GuestInterrupt, GuestTimerInstant, VcpuDtable, VcpuRegs, VcpuSegment, VcpuSregs,
     },
-    //vmx::VmxExitReason,
+    vmid::*,
 };
+
+use crate::arch::cpu::extension::*;
+
+/// 1
+pub fn kvm_arch_init(){
+    // TODO: add nacl support
+
+    // Do some check
+    // cpu: must enable H.ext
+    // sbi: version >=0.2
+    // sbi: SBI RFENCE extension should be enabled
+    if !has_extensions(IsaExtensions::H) {
+        panic!("KVM: should enable H isaext");
+    }
+
+    // we use Sv39x4 for gstage now, we can add a dectet fn like linux do.
+
+    // dectet vmid
+    gstage_vmid_detect();
+
+
+}
