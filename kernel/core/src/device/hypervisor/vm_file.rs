@@ -272,6 +272,11 @@ impl FileLike for VmFile {
             CheckExtension => {
                 Ok(check_extension(raw_ioctl))
             }
+            cmd @ EnableCap => {
+                //let cap = cmd.read()?;
+                //self.vm.enable_cap(cap)?;
+                Ok(0)
+            }
             CreateVcpu => {
                 let vcpu_id = read_vcpu_id(raw_ioctl)?;
 
@@ -286,31 +291,18 @@ impl FileLike for VmFile {
 
                 Ok(vcpu_fd.into())
             }
-            /* 
             cmd @ SetUserMemoryRegion => {
                 let region: UserMemoryRegion = cmd.read()?;
                 return_errno_with_message!(Errno::ENOTTY, "unknown VM ioctl command, setuser");
                 //self.set_user_memory_region(region)?;
                 Ok(0)
-            }*/
-            cmd @ RegisterCoalescedMmio => {
-                let _zone = cmd.read()?;
-                // TODO: Implement coalesced MMIO registration
-                Ok(0)
-            }
-            cmd @ UnregisterCoalescedMmio => {
-                let _zone = cmd.read()?;
-                // TODO: Implement coalesced MMIO unregistration
-                Ok(0)
             }
             cmd @ IoEventFd => {
+                ostd::error!("vm ioctl: IoEventFd");
                 let ioeventfd: IoEventFdConfig = cmd.read()?;
                 let eventfd = self.get_eventfd(ioeventfd.fd)?;
                 self.vm.configure_ioeventfd(ioeventfd, eventfd)?;
                 Ok(0)
-            }
-            GetStatsFd => {
-                return_errno_with_message!(Errno::ENOTTY, "KVM stats fd is not supported");
             }
             _ => {
                 let ioctl_nr = raw_ioctl.cmd() & 0xff;

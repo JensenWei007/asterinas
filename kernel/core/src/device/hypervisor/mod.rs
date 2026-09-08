@@ -8,27 +8,6 @@ mod vm;
 mod vm_file;
 mod vm_memory;
 
-#[cfg(target_arch = "x86_64")]
-mod apic;
-#[cfg(target_arch = "x86_64")]
-mod cr;
-#[cfg(target_arch = "x86_64")]
-mod msr;
-#[cfg(target_arch = "x86_64")]
-mod pio;
-#[cfg(target_arch = "x86_64")]
-mod cpuid;
-#[cfg(target_arch = "x86_64")]
-mod irqfd;
-#[cfg(target_arch = "x86_64")]
-mod kvmclock;
-#[cfg(target_arch = "x86_64")]
-mod mmio;
-
-#[cfg(target_arch = "riscv64")]
-mod aia;
-
-
 pub use device::HypervisorDevice;
 
 use ostd::arch::vm::kvm_arch_init;

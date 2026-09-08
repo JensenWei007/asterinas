@@ -23,25 +23,6 @@ use crate::{
     vm::page_cache::{Vmo, VmoOptions},
 };
 
-/*
-const _: () = {
-    assert!(KVM_RUN_READY_FOR_INTERRUPT_INJECTION_OFFSET + 1 == KVM_RUN_IF_FLAG_OFFSET);
-    assert!(KVM_RUN_IF_FLAG_OFFSET + 1 == KVM_RUN_FLAGS_OFFSET);
-    assert!(KVM_RUN_FLAGS_OFFSET + 2 == KVM_RUN_CR8_OFFSET);
-    assert!(KVM_RUN_CR8_OFFSET + 8 == KVM_RUN_APIC_BASE_OFFSET);
-    assert!(KVM_RUN_APIC_BASE_OFFSET + 8 == KVM_RUN_IO_DIRECTION_OFFSET);
-
-    assert!(KVM_RUN_IO_DIRECTION_OFFSET + 1 == KVM_RUN_IO_SIZE_OFFSET);
-    assert!(KVM_RUN_IO_SIZE_OFFSET + 1 == KVM_RUN_IO_PORT_OFFSET);
-    assert!(KVM_RUN_IO_PORT_OFFSET + 2 == KVM_RUN_IO_COUNT_OFFSET);
-    assert!(KVM_RUN_IO_COUNT_OFFSET + 4 == KVM_RUN_IO_DATA_OFFSET_OFFSET);
-
-    assert!(KVM_RUN_MMIO_PHYS_ADDR_OFFSET + 8 == KVM_RUN_MMIO_DATA_OFFSET);
-    assert!(KVM_RUN_MMIO_DATA_OFFSET + 8 == KVM_RUN_MMIO_LEN_OFFSET);
-    assert!(KVM_RUN_MMIO_LEN_OFFSET + 4 == KVM_RUN_MMIO_IS_WRITE_OFFSET);
-};
-*/
-
 /// VCPU file descriptor
 pub struct VcpuFile {
     vm: Arc<Vm>,
@@ -101,171 +82,31 @@ impl FileLike for VcpuFile {
         return_errno_with_message!(Errno::EINVAL, "cannot write to VCPU file");
     }
 
-    #[cfg(target_arch = "x86_64")]
-    fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
-        dispatch_ioctl!(match raw_ioctl {
-            Run => {
-                self.ioctl_run()
-            }
-            cmd @ GetRegs => {
-                let regs = self.vcpu.get_regs()?;
-                cmd.write(&regs)?;
-                Ok(0)
-            }
-            cmd @ SetRegs => {
-                let regs = cmd.read()?;
-                self.vcpu.set_regs(regs)?;
-                Ok(0)
-            }
-            cmd @ GetSregs => {
-                let sregs = self.vcpu.get_sregs()?;
-                cmd.write(&sregs)?;
-                Ok(0)
-            }
-            cmd @ SetSregs => {
-                let sregs = cmd.read()?;
-                self.vcpu.set_sregs(sregs)?;
-                Ok(0)
-            }
-            cmd @ GetMsrs => {
-                let (msrs, mut entries) = read_get_msr_entries(&cmd, raw_ioctl)?;
-                let handled_count = self.vcpu.get_msrs(&mut entries)?;
-                write_get_msr_entries(&cmd, raw_ioctl, msrs, &entries)?;
-                Ok(handled_count)
-            }
-            cmd @ SetMsrs => {
-                let entries = read_set_msr_entries(&cmd, raw_ioctl)?;
-                self.vcpu.set_msrs(&entries)
-            }
-            cmd @ SetFpu => {
-                let _fpu = cmd.read()?;
-                // No-op compatibility API; FPU/XMM state is not installed yet.
-                Ok(0)
-            }
-            cmd @ GetLapic => {
-                let lapic = self.vcpu.get_lapic()?;
-                cmd.write(&lapic)?;
-                Ok(0)
-            }
-            cmd @ SetLapic => {
-                let lapic = cmd.read()?;
-                self.vcpu.set_lapic(&lapic)?;
-                Ok(0)
-            }
-            cmd @ SetCpuid2 => {
-                let entries = read_cpuid_entries(&cmd, raw_ioctl)?;
-                self.vcpu.set_cpuid_entries(entries)?;
-                Ok(0)
-            }
-            cmd @ TprAccessReporting => {
-                let ctl = cmd.read()?;
-                // No-op compatibility API; report the accepted control back.
-                cmd.write(&ctl)?;
-                Ok(0)
-            }
-            cmd @ SetVapicAddr => {
-                let _addr = cmd.read()?;
-                // No-op compatibility API; VAPIC access-page acceleration is not modeled yet.
-                Ok(0)
-            }
-            cmd @ GetMpState => {
-                let state = self.vcpu.get_mp_state()?;
-                cmd.write(&state)?;
-                Ok(0)
-            }
-            cmd @ SetMpState => {
-                let state = cmd.read()?;
-                self.vcpu.set_mp_state(state)?;
-                Ok(0)
-            }
-            cmd @ X86SetupMce => {
-                let _mcg_cap = cmd.read()?;
-                // No-op compatibility API; machine-check state is not modeled yet.
-                Ok(0)
-            }
-            cmd @ GetVcpuEvents => {
-                // No-op compatibility API; return the last accepted value.
-                let events = self.compat_state.lock().vcpu_events;
-                cmd.write(&events)?;
-                Ok(0)
-            }
-            cmd @ SetVcpuEvents => {
-                let events = cmd.read()?;
-                self.compat_state.lock().vcpu_events = events;
-                Ok(0)
-            }
-            cmd @ GetDebugRegs => {
-                // No-op compatibility API; return the last accepted value.
-                let debug_regs = self.compat_state.lock().debug_regs;
-                cmd.write(&debug_regs)?;
-                Ok(0)
-            }
-            cmd @ SetDebugRegs => {
-                let debug_regs = cmd.read()?;
-                self.compat_state.lock().debug_regs = debug_regs;
-                Ok(0)
-            }
-            SetTscKhz => {
-                self.vcpu.set_tsc_khz(read_tsc_khz(raw_ioctl)?)?;
-                Ok(0)
-            }
-            GetTscKhz => {
-                self.vcpu.get_tsc_khz()
-            }
-            cmd @ GetXsave => {
-                // No-op compatibility API; return the last accepted value.
-                let xsave = self.compat_state.lock().xsave;
-                cmd.write(&xsave)?;
-                Ok(0)
-            }
-            cmd @ SetXsave => {
-                let xsave = cmd.read()?;
-                self.compat_state.lock().xsave = xsave;
-                Ok(0)
-            }
-            GetStatsFd => {
-                return_errno_with_message!(Errno::ENOTTY, "KVM stats fd is not supported");
-            }
-            _ => {
-                let ioctl_nr = raw_ioctl.cmd() & 0xff;
-                error!(
-                    "hypervisor: unimplemented VCPU ioctl command: cmd={:#x}, nr={:#x}",
-                    raw_ioctl.cmd(),
-                    ioctl_nr
-                );
-                return_errno_with_message!(Errno::ENOTTY, "unknown VCPU ioctl command");
-            }
-        })
-    }
-
     #[cfg(target_arch = "riscv64")]
     fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             Run => {
                 self.ioctl_run()
             }
-            cmd @ GetRegs => {
-                let regs = self.vcpu.get_regs()?;
-                cmd.write(&regs)?;
+            cmd @ GetOneReg => {
+                //let regs = self.vcpu.get_regs()?;
+                //cmd.write(&regs)?;
                 Ok(0)
             }
-            cmd @ SetRegs => {
-                let regs = cmd.read()?;
-                self.vcpu.set_regs(regs)?;
+            cmd @ SetOneReg => {
+                //let regs = cmd.read()?;
+                //self.vcpu.set_regs(regs)?;
                 Ok(0)
             }
-            cmd @ GetMpState => {
-                let state = self.vcpu.get_mp_state()?;
-                cmd.write(&state)?;
+            cmd @ GetRegList => {
+                //let state = self.vcpu.get_mp_state()?;
+                //cmd.write(&state)?;
                 Ok(0)
             }
             cmd @ SetMpState => {
                 let state = cmd.read()?;
                 self.vcpu.set_mp_state(state)?;
                 Ok(0)
-            }
-            GetStatsFd => {
-                return_errno_with_message!(Errno::ENOTTY, "KVM stats fd is not supported");
             }
             _ => {
                 let ioctl_nr = raw_ioctl.cmd() & 0xff;

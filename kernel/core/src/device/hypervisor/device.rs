@@ -160,8 +160,9 @@ impl PerOpenFileOps for HypervisorDeviceFile {
                 // Allocate a new VM ID
                 let vm_id = self.alloc_vm_id();
 
-                // Create the VM
+                // Create the VM and init
                 let vm = Vm::new(vm_id)?;
+                vm.init();
 
                 // Create a file descriptor for the VM
                 let vm_file = Arc::new(VmFile::new(vm));
@@ -178,7 +179,7 @@ impl PerOpenFileOps for HypervisorDeviceFile {
                 Ok(check_extension(raw_ioctl))
             }
             GetVcpuMmapSize => {
-                Ok(KVM_RUN_MMAP_SIZE as i32)
+                Ok(0x2000)
             }
             _ => {
                 let ioctl_nr = raw_ioctl.cmd() & 0xff;

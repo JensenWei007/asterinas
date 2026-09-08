@@ -13,6 +13,10 @@ pub(crate) mod types;
 pub(crate) mod csr;
 pub(crate) mod vmid;
 pub(crate) mod tlb;
+pub(crate) mod vplic;
+pub mod timer;
+pub mod vm;
+pub mod cpu;
 
 pub use self::{
     context::{GuestContext, VcpuRunState},
@@ -23,10 +27,11 @@ pub use self::{
     vmid::*,
 };
 
-use crate::arch::cpu::extension::*;
+use crate::arch::{cpu::extension::*, vm::interrupt::vintc_init};
 
 /// 1
 pub fn kvm_arch_init(){
+    crate::error!("kvm_arch_init");
     // TODO: add nacl support
 
     // Do some check
@@ -38,9 +43,10 @@ pub fn kvm_arch_init(){
     }
 
     // we use Sv39x4 for gstage now, we can add a dectet fn like linux do.
+    // gstage_mode_detect();
 
     // dectet vmid
     gstage_vmid_detect();
 
-
+    vintc_init();
 }
