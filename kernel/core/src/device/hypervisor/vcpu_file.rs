@@ -12,6 +12,7 @@ use super::{
     //vcpu::{PendingMmioOperation, PendingOperation, PendingPioOperation},
     vm::Vm,
 };
+use ostd::mm::VmIo;
 use crate::{
     fs::{
         file::{AccessMode, FileCommon, FileLike, Mappable, StatusFlags, file_table::FdFlags},
@@ -21,6 +22,7 @@ use crate::{
     process::{posix_thread::AsPosixThread, signal::HandlePendingSignal},
     util::ioctl::{RawIoctl, dispatch_ioctl},
     vm::page_cache::{Vmo, VmoOptions},
+    context::current_userspace,
 };
 
 /// VCPU file descriptor
@@ -30,36 +32,15 @@ pub struct VcpuFile {
     run_page: Arc<Vmo>,
     //pending_operation: Mutex<Option<PendingOperation>>,
     common: FileCommon,
-    #[cfg(target_arch = "x86_64")]
-    compat_state: Mutex<VcpuCompatState>,
 }
 
-// Compatibility state for KVM ioctls that are accepted but not wired into
-// guest execution yet. QEMU copies these GET results back into CPUX86State,
-// so keep the last SET value instead of returning a fresh default state.
-#[cfg(target_arch = "x86_64")]
-struct VcpuCompatState {
-    debug_regs: DebugRegs,
-    vcpu_events: VcpuEvents,
-    xsave: XsaveState,
-}
-
-#[cfg(target_arch = "x86_64")]
-impl Default for VcpuCompatState {
-    fn default() -> Self {
-        Self {
-            debug_regs: default_debug_regs(),
-            vcpu_events: VcpuEvents::default(),
-            xsave: XsaveState::default(),
-        }
-    }
-}
 
 impl VcpuFile {
     /// Creates a new VCPU file
     pub fn new(vm: Arc<Vm>, vcpu_id: u32) -> Result<Self> {
         let run_page = VmoOptions::new(KVM_RUN_MMAP_SIZE).alloc()?;
         let vcpu = vm.create_vcpu(vcpu_id)?;
+        vcpu.init();
         let pseudo_path = AnonInodeFs::new_path(|_| "anon_inode:[hypervisor-vcpu]".to_string());
         Ok(Self {
             vm,
@@ -67,8 +48,6 @@ impl VcpuFile {
             run_page,
             //pending_operation: Mutex::new(None),
             common: FileCommon::new(pseudo_path, AccessMode::O_RDWR, StatusFlags::empty()),
-            #[cfg(target_arch = "x86_64")]
-            compat_state: Mutex::new(VcpuCompatState::default()),
         })
     }
 }
@@ -89,18 +68,29 @@ impl FileLike for VcpuFile {
                 self.ioctl_run()
             }
             cmd @ GetOneReg => {
-                //let regs = self.vcpu.get_regs()?;
-                //cmd.write(&regs)?;
+                let regs = cmd.read()?;
+                let reg_val: usize = self.vcpu.arch.lock().get_one_reg(regs);
+                current_userspace!().write_val(regs.addr as usize, &reg_val)?;
                 Ok(0)
             }
             cmd @ SetOneReg => {
-                //let regs = cmd.read()?;
-                //self.vcpu.set_regs(regs)?;
+                let regs = cmd.read()?;
+                let reg_val = current_userspace!().read_val(regs.addr as usize)?;
+                self.vcpu.arch.lock().set_one_reg(regs, reg_val);
                 Ok(0)
             }
             cmd @ GetRegList => {
-                //let state = self.vcpu.get_mp_state()?;
-                //cmd.write(&state)?;
+                let mut list = cmd.read()?;
+                let n = list.n;
+                list.n = self.vcpu.arch.lock().num_regs();
+                cmd.write(&list)?;
+                if n < list.n {
+                    return_errno_with_message!(Errno::E2BIG, "GetReglist vec is too small!");
+                }
+                let mut reg_list = Vec::new();
+                self.vcpu.arch.lock().copy_reg_vec(Some(&mut reg_list));
+                reg_list.insert(0, list.n);
+                current_userspace!().write_slice(raw_ioctl.arg(), &reg_list)?;
                 Ok(0)
             }
             cmd @ SetMpState => {
@@ -133,15 +123,6 @@ impl FileLike for VcpuFile {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-fn default_debug_regs() -> DebugRegs {
-    DebugRegs {
-        dr6: 0xffff0ff0,
-        dr7: 0x400,
-        ..DebugRegs::default()
-    }
-}
-
 impl VcpuFile {
     fn ioctl_run(&self) -> Result<i32> {
         #[cfg(target_arch = "x86_64")]
@@ -155,59 +136,6 @@ impl VcpuFile {
         };
         self.write_exit_to_run_page(exit_info)?;
         Ok(0)
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn complete_pending_operation(&self) -> Result<()> {
-        let Some(operation) = self.pending_operation.lock().take() else {
-            return Ok(());
-        };
-
-        if let Err(err) = self.complete_operation(operation) {
-            *self.pending_operation.lock() = Some(operation);
-            return Err(err);
-        }
-        Ok(())
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn complete_operation(&self, operation: PendingOperation) -> Result<()> {
-        match operation {
-            PendingOperation::Pio(pio) => self.complete_pio_operation(pio),
-            PendingOperation::Mmio(mmio) => self.complete_mmio_operation(mmio),
-        }
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn complete_pio_operation(&self, operation: PendingPioOperation) -> Result<()> {
-        let input_data = if operation.operation.direction() == PioDirection::In {
-            let data_len = usize::try_from(operation.count)?
-                .checked_mul(usize::from(operation.operation.size()))
-                .ok_or_else(|| Error::new(Errno::EOVERFLOW))?;
-            let mut bytes = vec![0_u8; data_len];
-            self.read_run_bytes(KVM_RUN_IO_DATA_OFFSET, &mut bytes)?;
-            Some(bytes)
-        } else {
-            None
-        };
-
-        self.vcpu
-            .complete_pio_operation(operation, input_data.as_deref())
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn complete_mmio_operation(&self, operation: PendingMmioOperation) -> Result<()> {
-        let instruction = operation.instruction;
-        let read_value = if instruction.direction() == MmioDirection::Read {
-            let size = instruction.size() as usize;
-            let mut bytes = [0_u8; size_of::<u64>()];
-            self.read_run_bytes(KVM_RUN_MMIO_DATA_OFFSET, &mut bytes[..size])?;
-            Some(u64::from_le_bytes(bytes))
-        } else {
-            None
-        };
-
-        self.vcpu.complete_mmio_operation(operation, read_value)
     }
 
     fn immediate_exit(&self) -> Result<bool> {
@@ -229,126 +157,13 @@ impl VcpuFile {
             .is_some_and(HandlePendingSignal::has_pending))
     }
 
-    #[cfg(target_arch = "x86_64")]
-    fn write_exit_to_run_page(&self, exit_info: GuestExitInfo) -> Result<()> {
-        self.clear_run_output()?;
-        self.write_common_run_state()?;
-
-        match VmxExitReason::try_from(exit_info.exit_reason) {
-            Ok(VmxExitReason::IO_INSTRUCTION) => self.write_io_exit(exit_info),
-            Ok(VmxExitReason::EPT_VIOLATION) => self.write_mmio_exit(exit_info),
-            Ok(VmxExitReason::HLT) => self.write_simple_exit(KVM_EXIT_HLT),
-            Ok(VmxExitReason::TRIPLE_FAULT) => self.write_simple_exit(KVM_EXIT_SHUTDOWN),
-            _ => self.write_internal_error_exit(exit_info),
-        }
-    }
-
     #[cfg(target_arch = "riscv64")]
     fn write_exit_to_run_page(&self, _exit_info: GuestExitInfo) -> Result<()> {
         Ok(())
     }
 
-    #[cfg(target_arch = "x86_64")]
-    fn write_common_run_state(&self) -> Result<()> {
-        // These fields are maintained in the safe context cache. Avoid a full
-        // VMCS synchronization on every userspace-visible VM exit.
-        let apic_base = self.vcpu.guest_context().sregs().apic_base;
-        let mut state = [0_u8; 20];
-        state[12..20].copy_from_slice(&apic_base.to_le_bytes());
-        self.write_run_bytes(KVM_RUN_READY_FOR_INTERRUPT_INJECTION_OFFSET, &state)
-    }
-
     fn write_simple_exit(&self, exit_reason: u32) -> Result<()> {
         self.write_run_val(KVM_RUN_EXIT_REASON_OFFSET, &exit_reason)
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn write_io_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
-        let (operation, count, data) = {
-            let context = self.vcpu.guest_context();
-            let Some(operation) = PioOperation::decode(&context, self.vm.memory(), &exit_info)?
-            else {
-                return self.write_internal_error_exit(exit_info);
-            };
-            let count = operation.batch_count(&context, KVM_RUN_IO_DATA_CAPACITY);
-            if count == 0 {
-                return self.write_internal_error_exit(exit_info);
-            }
-            let data = if operation.direction() == PioDirection::Out {
-                operation.output_data(&context, self.vm.memory(), count)?
-            } else {
-                let data_len = usize::try_from(count)?
-                    .checked_mul(usize::from(operation.size()))
-                    .ok_or_else(|| Error::new(Errno::EOVERFLOW))?;
-                vec![0_u8; data_len]
-            };
-            (operation, count, data)
-        };
-        let kvm_direction = match operation.direction() {
-            PioDirection::In => KVM_EXIT_IO_IN,
-            PioDirection::Out => KVM_EXIT_IO_OUT,
-        };
-        let size = operation.size();
-        let port = operation.port();
-        let data_offset = KVM_RUN_IO_DATA_OFFSET as u64;
-
-        self.write_simple_exit(KVM_EXIT_IO)?;
-        let mut io = [0_u8; 16];
-        io[0] = kvm_direction;
-        io[1] = size;
-        io[2..4].copy_from_slice(&port.to_le_bytes());
-        io[4..8].copy_from_slice(&count.to_le_bytes());
-        io[8..16].copy_from_slice(&data_offset.to_le_bytes());
-        self.write_run_bytes(KVM_RUN_IO_DIRECTION_OFFSET, &io)?;
-
-        self.write_run_bytes(KVM_RUN_IO_DATA_OFFSET, &data)?;
-
-        *self.pending_operation.lock() = Some(PendingOperation::Pio(PendingPioOperation {
-            operation,
-            count,
-        }));
-        Ok(())
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn write_mmio_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
-        let direction = match exit_info.exit_qualification & 0b111 {
-            0b001 => MmioDirection::Read,
-            0b010 => MmioDirection::Write,
-            _ => return self.write_internal_error_exit(exit_info),
-        };
-        let context = self.vcpu.guest_context();
-        let instruction = decode_current_mmio_instruction(&context, self.vm.memory())?;
-        let Some(instruction) = instruction else {
-            return self.write_internal_error_exit(exit_info);
-        };
-        if instruction.direction() != direction {
-            return self.write_internal_error_exit(exit_info);
-        }
-
-        let size = instruction.size();
-        let len = u32::from(size);
-        let is_write = u8::from(direction == MmioDirection::Write);
-        let mut data = [0_u8; 8];
-        if direction == MmioDirection::Write {
-            let Some(value) = instruction.write_value(&context) else {
-                return self.write_internal_error_exit(exit_info);
-            };
-            data[..size as usize].copy_from_slice(&value.to_le_bytes()[..size as usize]);
-        }
-        drop(context);
-
-        self.write_simple_exit(KVM_EXIT_MMIO)?;
-        let mut mmio = [0_u8; 24];
-        mmio[0..8].copy_from_slice(&(exit_info.guest_phys_addr as u64).to_le_bytes());
-        mmio[8..16].copy_from_slice(&data);
-        mmio[16..20].copy_from_slice(&len.to_le_bytes());
-        mmio[20] = is_write;
-        self.write_run_bytes(KVM_RUN_MMIO_PHYS_ADDR_OFFSET, &mmio)?;
-
-        *self.pending_operation.lock() =
-            Some(PendingOperation::Mmio(PendingMmioOperation { instruction }));
-        Ok(())
     }
 
     fn write_internal_error_exit(&self, exit_info: GuestExitInfo) -> Result<()> {
@@ -385,20 +200,6 @@ impl VcpuFile {
     fn write_run_bytes(&self, offset: usize, buffer: &[u8]) -> Result<()> {
         let mut reader = VmReader::from(buffer).to_fallible();
         self.run_page.write(offset, &mut reader)
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn clear_run_output(&self) -> Result<()> {
-        static ZERO_PAGE: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
-
-        let mut offset = KVM_RUN_EXIT_REASON_OFFSET;
-        while offset < KVM_RUN_STRUCT_SIZE {
-            let len = (KVM_RUN_STRUCT_SIZE - offset).min(PAGE_SIZE);
-            let mut reader = VmReader::from(&ZERO_PAGE[..len]).to_fallible();
-            self.run_page.write(offset, &mut reader)?;
-            offset += len;
-        }
-        Ok(())
     }
 }
 

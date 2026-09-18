@@ -11,60 +11,14 @@ macro_rules! define_csr {
         impl $name {
             #[inline]
             pub unsafe fn read() -> usize {
-                match $addr {
-                    0x600 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x600", out(reg) r) };
-                        r
-                    }
-                    0x680 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x680", out(reg) r) };
-                        r
-                    }
-                    0x645 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x645", out(reg) r) };
-                        r
-                    }
-                    0x602 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x602", out(reg) r) };
-                        r
-                    }
-                    0x603 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x603", out(reg) r) };
-                        r
-                    }
-                    0x606 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x606", out(reg) r) };
-                        r
-                    }
-                    0x204 => {
-                        let r: usize;
-                        unsafe { asm!("csrr {0}, 0x204", out(reg) r) };
-                        r
-                    }
-                    // 添加更多地址...
-                    _ => unimplemented!("CSR address {:#x} not supported", $addr),
-                }
+                let r: usize;
+                unsafe { asm!(concat!("csrr {0}, ", stringify!($addr)), out(reg) r) };
+                r
             }
-            
+
             #[inline]
             pub unsafe fn write(value: usize) {
-                match $addr {
-                    0x600 => unsafe { asm!("csrw 0x600, {0}", in(reg) value) },
-                    0x680 => unsafe { asm!("csrw 0x680, {0}", in(reg) value) },
-                    0x645 => unsafe { asm!("csrw 0x645, {0}", in(reg) value) },
-                    0x602 => unsafe { asm!("csrw 0x602, {0}", in(reg) value) },
-                    0x603 => unsafe { asm!("csrw 0x603, {0}", in(reg) value) },
-                    0x606 => unsafe { asm!("csrw 0x606, {0}", in(reg) value) },
-                    0x204 => unsafe { asm!("csrw 0x204, {0}", in(reg) value) },
-                    // 添加更多地址...
-                    _ => unimplemented!("CSR address {:#x} not supported", $addr),
-                }
+                unsafe { asm!(concat!("csrw ", stringify!($addr), ", {0}"), in(reg) value) };
             }
             
             #[inline]
@@ -87,25 +41,46 @@ macro_rules! define_csr {
     };
 }
 
+define_csr!(Vsstatus, 0x200);
+define_csr!(Vsie, 0x204);
+define_csr!(Vstvec, 0x205);
+define_csr!(Vsscratch, 0x240);
+define_csr!(Vsepc, 0x241);
+define_csr!(Vscause, 0x242);
+define_csr!(Vstval, 0x243);
+define_csr!(Vsip, 0x244);
+define_csr!(Vsatp, 0x280);
+define_csr!(Vstimecmp, 0x24D);
+define_csr!(Vstimecmph, 0x25D);
+
+
 define_csr!(Hstatus, 0x600);
-define_csr!(Hgatp, 0x680);
-define_csr!(Hvip, 0x645);
 define_csr!(Hedeleg, 0x602);
 define_csr!(Hideleg, 0x603);
+define_csr!(Hie, 0x604);
+define_csr!(Htimedelta, 0x605);
 define_csr!(Hcounteren, 0x606);
+define_csr!(Hgeie, 0x607);
+define_csr!(Henvcfg, 0x60a);
+define_csr!(Htimedeltah, 0x615);
+define_csr!(Henvcfgh, 0x61a);
+define_csr!(Htval, 0x643);
+define_csr!(Hip, 0x644);
+define_csr!(Hvip, 0x645);
+define_csr!(Htinst, 0x64a);
+define_csr!(Hgatp, 0x680);
+define_csr!(Hgeip, 0xe12);
 
 
-define_csr!(Vsie, 0x204);
 
 
-pub const CSR_HIE: u16 = 0x604;
-pub const CSR_HTIMEDELTA: u16 = 0x605;
-pub const CSR_HGEIE: u16 = 0x607;
-pub const CSR_HENVCFG: u16 = 0x60a;
-pub const CSR_HTIMEDELTAH: u16 = 0x615;
-pub const CSR_HENVCFGH: u16 = 0x61a;
-pub const CSR_HTVAL: u16 = 0x643;
-pub const CSR_HIP: u16 = 0x644;
-pub const CSR_HVIP: u16 = 0x645;
-pub const CSR_HTINST: u16 = 0x64a;
-pub const CSR_HGEIP: u16 = 0xe12;
+
+pub const SR_SPIE:usize = 0x00000020;
+pub const SR_MPIE:usize = 0x00000080;
+pub const SR_SPP:usize = 0x00000100;
+
+pub const HSTATUS_VTW:usize = 0x00200000;
+pub const HSTATUS_SPVP:usize = 0x00000100;
+pub const HSTATUS_SPV:usize = 0x00000080;
+
+

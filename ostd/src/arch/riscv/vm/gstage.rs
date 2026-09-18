@@ -17,7 +17,7 @@ const ADDRESS_WIDTH: usize = 39;
 
 unsafe impl PageTableConfig for GstagePtConfig {
     // 1 for 512GB, 256 is enough.
-    const TOP_LEVEL_INDEX_RANGE: Range<usize> = 0..512;
+    const TOP_LEVEL_INDEX_RANGE: Range<usize> = 0..256;
 
     type E = PageTableEntry;
     type C = PagingConsts;

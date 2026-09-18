@@ -1,6 +1,6 @@
 use super::{
     ioctl::{
-        IoEventFdConfig,
+        IoEventFdConfig,EnableCapData,
         KVM_CAP_MAX_VCPU_ID, KVM_CAP_SPLIT_IRQCHIP, KVM_IOEVENTFD_FLAG_DEASSIGN,
         KVM_IRQ_ROUTING_IRQCHIP, KVM_IRQ_ROUTING_MSI, KVM_IRQCHIP_IOAPIC, KVM_IRQFD_FLAG_DEASSIGN,
         KVM_IRQFD_FLAG_RESAMPLE,
@@ -162,6 +162,18 @@ impl Vm {
             address_space, addr, len, signal_count
         );
         true
+    }
+
+    pub(super) fn enable_cap(&self, cap: EnableCapData) -> Result<()> {
+        match usize::try_from(cap.cap)? {
+            KVM_CAP_SPLIT_IRQCHIP => {
+                return_errno_with_message!(Errno::EINVAL, "split irqchip is not supported");
+            }
+            KVM_CAP_MAX_VCPU_ID => Ok(()),
+            _ => {
+                return_errno_with_message!(Errno::EINVAL, "unsupported VM capability");
+            }
+        }
     }
 
     fn ensure_irqchip_created(&self) -> Result<()> {

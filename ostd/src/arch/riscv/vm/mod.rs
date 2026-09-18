@@ -8,7 +8,7 @@ pub(crate) mod interrupt;
 pub(crate) mod context;
 pub(crate) mod exit;
 
-pub(crate) mod types;
+pub mod types;
 
 pub(crate) mod csr;
 pub(crate) mod vmid;
@@ -17,6 +17,10 @@ pub(crate) mod vplic;
 pub mod timer;
 pub mod vm;
 pub mod cpu;
+pub mod onereg;
+pub mod vcpu;
+pub mod isa;
+pub mod sbi;
 
 pub use self::{
     context::{GuestContext, VcpuRunState},

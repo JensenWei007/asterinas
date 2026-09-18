@@ -3,7 +3,6 @@
 //! Translates guest virtual addresses to guest physical addresses.
 
 use ostd::{
-    arch::vm::GuestContext,
     mm::{Gpaddr, Gvaddr},
 };
 
@@ -155,6 +154,7 @@ fn is_canonical(address: Gvaddr, width: u32) -> bool {
     ((address << shift) as i64 >> shift) as Gvaddr == address
 }
 
+/* 
 #[cfg(target_arch = "riscv64")]
 pub(super) fn translate_gva_to_gpa(
     _context: &GuestContext,
@@ -163,3 +163,4 @@ pub(super) fn translate_gva_to_gpa(
 ) -> Result<Gpaddr> {
     return Ok(gva);
 }
+*/

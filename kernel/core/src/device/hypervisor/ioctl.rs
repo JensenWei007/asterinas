@@ -4,7 +4,8 @@
 use ostd::{
     arch::vm::{
         VcpuDtable as ArchVcpuDtable, VcpuRegs as ArchVcpuRegs, VcpuRunState,
-        VcpuSegment as ArchVcpuSegment, VcpuSregs as ArchVcpuSregs,
+        VcpuSegment as ArchVcpuSegment, VcpuSregs as ArchVcpuSregs,onereg::*,
+        types::*,
     },
     cpu::num_cpus,
     mm::VmIo,
@@ -132,9 +133,10 @@ pub(super) type EnableCap = ioc!(KVM_ENABLE_CAP, 0xAE, 0xa3, InData<EnableCapDat
 
 // VCPU ioctls.
 pub(super) type Run = ioc!(KVM_RUN, 0xAE, 0x80, NoData);
-pub(super) type GetOneReg = ioc!(KVM_GET_ONE_REG, 0xAE, 0xAB, OutData<OneReg>);
-pub(super) type SetOneReg = ioc!(KVM_SET_ONE_REG, 0xAE, 0xAC, InData<OneReg>);
-pub(super) type GetRegList = ioc!(KVM_GET_REG_LIST, 0xAE, 0xB0, OutData<RegList>);
+// 这里都需要设置为InData，因为实际传入的是id和addr, 需要分别写到这个地址和从这个地址读
+pub(super) type GetOneReg = ioc!(KVM_GET_ONE_REG, 0xAE, 0xAB, InOutData<OneReg>);
+pub(super) type SetOneReg = ioc!(KVM_SET_ONE_REG, 0xAE, 0xAC, InOutData<OneReg>);
+pub(super) type GetRegList = ioc!(KVM_GET_REG_LIST, 0xAE, 0xB0, InOutData<RegList>);
 pub(super) type SetMpState = ioc!(KVM_SET_MP_STATE, 0xAE, 0x99, InData<MpState>);
 
 #[cfg(target_arch = "riscv64")]
@@ -219,60 +221,17 @@ impl Default for EnableCapData {
     }
 }
 
-/// The common `struct kvm_mp_state`.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod)]
-pub(super) struct MpState {
-    pub mp_state: u32,
-}
-
-impl From<VcpuRunState> for MpState {
-    fn from(state: VcpuRunState) -> Self {
-        Self {
-            mp_state: match state {
-                VcpuRunState::Runnable | VcpuRunState::Running => KVM_MP_STATE_RUNNABLE,
-                VcpuRunState::Uninitialized => KVM_MP_STATE_UNINITIALIZED,
-                VcpuRunState::WaitForSipi => KVM_MP_STATE_INIT_RECEIVED,
-                VcpuRunState::Halted => KVM_MP_STATE_HALTED,
-            },
-        }
-    }
-}
-
-impl TryFrom<MpState> for VcpuRunState {
-    type Error = Error;
-
-    fn try_from(state: MpState) -> core::result::Result<Self, Self::Error> {
-        match state.mp_state {
-            KVM_MP_STATE_RUNNABLE => Ok(Self::Runnable),
-            KVM_MP_STATE_UNINITIALIZED => Ok(Self::Uninitialized),
-            KVM_MP_STATE_INIT_RECEIVED => Ok(Self::WaitForSipi),
-            KVM_MP_STATE_HALTED => Ok(Self::Halted),
-            _ => Err(Error::with_message(
-                Errno::EINVAL,
-                "unsupported KVM MP state",
-            )),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod)]
-pub struct OneReg {
-	id: u64,
-	addr: u64,
-}
-
 use core::slice;
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
 pub struct RegList {
     /// The number of regs
     pub n: u64,
     // Here is a FLEX_ARRAY, but in rust we do not write it
 }
 
-/* 
+/*
 pub fn get_reg_list(list: *const RegList) -> &'static [u64] {
     unsafe {
         let n = (*list).n as usize;

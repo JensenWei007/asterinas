@@ -3,7 +3,7 @@ use crate::{
     vm::{GuestPhysMemSpace},
 };
 use super::{
-    context::{GuestContext, },
+    context::{GuestContext},
 };
 
 /// Describes why a guest run returned to the kernel client.
