@@ -204,7 +204,7 @@ pub fn kvm_riscv_isa_check_host(kvm_ext: usize) -> Result<IsaExtensions, i32> {
 pub fn kvm_riscv_isa_enable_allowed(ext: IsaExtensions) -> bool {
     match ext {
         IsaExtensions::H | IsaExtensions::SSCOFPMF |IsaExtensions::V => false,
-        _ => true,
+        _ => has_extensions(ext),
     }
 }
 
@@ -226,9 +226,6 @@ pub fn kvm_riscv_vcpu_setup_isa(isa: &mut [u64; 2]) {
     for i in 0..KvmRiscvIsaExtId::MAX as usize {
         if let Ok(ext) = kvm_riscv_isa_check_host(i) {
             if kvm_riscv_isa_enable_allowed(ext) {
-                if i==2 || i==3 {// 会进init的时候panic，不过不影响, 需要补上fp_d的支持就ok了
-                    continue;
-                }
                 set_bit(isa, i);
             }
         }

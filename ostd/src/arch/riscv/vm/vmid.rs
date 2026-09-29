@@ -21,6 +21,7 @@ pub struct Vmid {
 
 /// 1
 pub fn gstage_vmid_detect(){
+    /* 
     // Figure-out number of VMID bits in HW
     let mode = (HgatpMode::from_pgd_levels(GSTAGE_MAX_PGD_LEVELS) as usize) << HGATP_MODE_SHIFT;
     let val = mode | HGATP_VMID;
@@ -40,6 +41,7 @@ pub fn gstage_vmid_detect(){
     if (1 << *vmid_bits) < num_cpus(){
         *vmid_bits = 0;
     }
+    */
 }
 
 

@@ -1,5 +1,7 @@
 /// 1
 use alloc::{sync::Arc, vec::Vec};
+use crate::arch::vm::vcpu::VcpuArch;
+
 use super::onereg::*;
 use alloc::vec;
 
@@ -62,9 +64,10 @@ pub const SBI_EXT_0_1_SET_TIMER: usize = 0x0;
 	pub const SBI_EXT_VENDOR_END: usize = 0x09FFFFFF;
 
 /// 1
+#[repr(C)]
 pub struct VcpuSbiContext {
 	pub return_handled: usize,
-	pub ext_status: [KvmRiscvSbiExtStatus; KVM_RISCV_SBI_EXT_ID::KVM_RISCV_SBI_EXT_MAX as usize],
+	pub ext_status: [KvmRiscvSbiExtStatus; KVM_RISCV_SBI_EXT_ID::KVM_RISCV_SBI_EXT_MAX as usize + 1],
     /// Firmware feature SBI extension context
 	pub fwft_context: KvmSbiFwft,
     pub shmem: u64,
@@ -76,7 +79,7 @@ impl VcpuSbiContext {
     pub fn new() -> Self {
         Self {
             return_handled: 0,
-            ext_status: [KvmRiscvSbiExtStatus::KVM_RISCV_SBI_EXT_STATUS_UNINITIALIZED; KVM_RISCV_SBI_EXT_ID::KVM_RISCV_SBI_EXT_MAX as usize],
+            ext_status: [KvmRiscvSbiExtStatus::KVM_RISCV_SBI_EXT_STATUS_UNINITIALIZED; KVM_RISCV_SBI_EXT_ID::KVM_RISCV_SBI_EXT_MAX as usize + 1],
             fwft_context: KvmSbiFwft::new(),
             shmem: 0,
             last_steal: 0,
@@ -109,6 +112,7 @@ pub struct KvmRiscvSbiExtensionEntry {
 }
 
 /// 1
+#[derive(Clone, Copy, Debug, Default)]
 pub struct KvmCpuTrap {
 	sepc: usize,
 	scause: usize,
@@ -118,11 +122,12 @@ pub struct KvmCpuTrap {
 }
 
 /// 1
+#[derive(Clone, Copy, Debug, Default)]
 pub struct KvmVcpuSbiReturn {
-	out_val: usize,
-	err_val: usize,
-	utrap: Arc<KvmCpuTrap>,
-	uexit: bool,
+	pub out_val: usize,
+	pub err_val: usize,
+	pub utrap: KvmCpuTrap,
+	pub uexit: bool,
 }
 
 pub enum SbiFwftFeature {
@@ -189,6 +194,7 @@ pub struct KvmSbiFwftConfig {
 }
 
 /// FWFT data structure per vcpu
+#[repr(C)]
 pub struct KvmSbiFwft {
 	configs: Vec<KvmSbiFwftConfig>,
 	have_vs_pmlen_7: bool,
@@ -219,8 +225,15 @@ impl KvmSbiFwft {
     }
 }
 
+pub struct KvmCpuSbiReturn {
+	out_val: usize, 
+	err_val: usize,
+	utrap: KvmCpuTrap,
+	uexit: bool,
+}
+
 /// A type alias for the Sbi Handler callback function.
-pub type SbiHandlerFunction = dyn Fn(&KvmVcpuSbiReturn) -> usize + Sync + Send + 'static;
+pub type SbiHandlerFunction = dyn Fn(&VcpuArch) -> KvmVcpuSbiReturn + Sync + Send + 'static;
 pub type SbiGetStateRegIdFunction = dyn Fn(usize) -> usize + Sync + Send + 'static;
 pub type SbiGetStateRegCountFunction = dyn Fn() -> usize + Sync + Send + 'static;
 pub type SbiInitFunction = dyn Fn(&mut VcpuSbiContext) -> usize + Sync + Send + 'static;
@@ -236,7 +249,7 @@ pub struct KvmVcpuSbiExtension {
 	/// SBI extension handler. It can be defined for a given extension or group of
 	/// extension. But it should always return linux error codes rather than SBI
 	/// specific error codes.
-	handler: &'static SbiHandlerFunction,
+	pub handler: &'static SbiHandlerFunction,
 
 	/// Init/deinit function called once during VCPU init/destroy. These
 	/// might be use if the SBI extensions need to allocate or do specific
@@ -520,52 +533,92 @@ pub const SBI_FWFT_FEATURES: [KvmSbiFwftFeature; 2] = [
     },
 ];
 
-pub fn sbi_ext_v01_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_v01_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_base_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub const SBI_EXT_BASE_GET_SPEC_VERSION: usize = 0;
+pub const SBI_EXT_BASE_GET_IMP_ID: usize = 1;
+pub const SBI_EXT_BASE_GET_IMP_VERSION: usize = 2;
+pub const SBI_EXT_BASE_PROBE_EXT: usize = 3;
+pub const SBI_EXT_BASE_GET_MVENDORID: usize = 4;
+pub const SBI_EXT_BASE_GET_MARCHID: usize = 5;
+pub const SBI_EXT_BASE_GET_MIMPID: usize = 6;
+
+pub fn sbi_ext_base_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    let mut rt = KvmVcpuSbiReturn::default();
+
+    match arch.guest_context.a6 {
+        SBI_EXT_BASE_GET_SPEC_VERSION => {
+            rt.out_val = 3 << 24;
+        }
+        SBI_EXT_BASE_GET_IMP_ID => {
+            rt.out_val = 3;
+        }
+        SBI_EXT_BASE_GET_IMP_VERSION => {
+            rt.out_val = 459264;
+        }
+        SBI_EXT_BASE_PROBE_EXT => {
+            rt.out_val = 0;
+        }
+        SBI_EXT_BASE_GET_MVENDORID => {
+            rt.out_val = arch.mvendorid;
+        }
+        SBI_EXT_BASE_GET_MARCHID => {
+            rt.out_val = arch.marchid;
+        }
+        SBI_EXT_BASE_GET_MIMPID => {
+            rt.out_val = arch.mimpid;
+        }
+        _ => {
+            panic!("sbi_ext_base_handler");
+        }
+    }
+
+    rt
 }
 
-pub fn sbi_ext_time_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_time_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    let next_cycle = arch.guest_context.a0 as u64;
+    let func = arch.timer.timer_next_event.unwrap();
+    func(next_cycle);
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_ipi_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_ipi_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_rfence_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_rfence_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_srst_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_srst_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_hsm_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_hsm_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_pmu_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_pmu_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_forward_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_forward_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_susp_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_susp_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_sta_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_sta_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
-pub fn sbi_ext_fwft_handler(_ret: &KvmVcpuSbiReturn) -> usize {
-    0
+pub fn sbi_ext_fwft_handler(arch: &VcpuArch) -> KvmVcpuSbiReturn {
+    KvmVcpuSbiReturn::default()
 }
 
 pub fn vcpu_get_sbi_ext_idx(idx: usize) -> usize {

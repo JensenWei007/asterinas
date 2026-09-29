@@ -2,6 +2,10 @@
 , benchmark, conformance, regression, dnsServer, }:
 let
   boot_hello = builtins.path { path = ./../src/boot_hello.sh; };
+  qemu = builtins.path { path = ./../src/qemu-system-riscv64; };
+  sbi = builtins.path { path = ./../src/fw_jump.bin; };
+  kernel = builtins.path { path = ./../src/Image; };
+  img = builtins.path { path = ./../src/rootfs.img; };
   init = builtins.path { path = ./../src/init; };
   etc = lib.fileset.toSource {
     root = ./../etc;
@@ -37,6 +41,12 @@ in stdenvNoCC.mkDerivation {
     ${lib.optionalString is_evtest_included ''
       cp -r ${pkgs.evtest}/bin/* $out/bin/
     ''}
+
+    mkdir -p $out/kvm_test
+    cp ${qemu} $out/kvm_test/qemu-system-riscv64
+    #cp ${sbi} $out/kvm_test/fw_jump.bin
+    cp ${kernel} $out/kvm_test/Image
+    #cp ${img} $out/kvm_test/root.img
 
     cp ${boot_hello} $out/test/boot_hello.sh
     cp ${init} $out/init

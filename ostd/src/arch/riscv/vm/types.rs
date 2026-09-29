@@ -46,6 +46,7 @@ pub const VSIP_VALID_MASK:u64 =	(1 << IRQ_S_SOFT) | (1 << IRQ_S_TIMER) | (1 << I
 pub const KVM_HEDELEG_DEFAULT:usize = 0xB30D;
 pub const KVM_HIDELEG_DEFAULT:usize = 0x444;
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub struct KvmVcpuResetState {
 	pc: usize,

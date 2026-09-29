@@ -5,9 +5,7 @@
 use core::{cmp, ops::Range};
 
 use ostd::{
-    mm::{Gpaddr, PageProperty, UFrame, io::util::HasVmReaderWriter},
-    task::disable_preempt,
-    vm::GuestPhysMemSpace,
+    mm::{Gpaddr, HasPaddr, PageProperty, UFrame, io::util::HasVmReaderWriter}, task::disable_preempt, vm::GuestPhysMemSpace,
 };
 
 use crate::prelude::*;
@@ -152,17 +150,16 @@ impl VmMemory {
         prop: PageProperty,
     ) -> Result<()> {
         let preempt_guard = disable_preempt();
-        let mut cursor = self.guest_mem.cursor_mut(&preempt_guard, &guest_range)?;
-        for frame in frames {
-            cursor.map(frame.clone(), prop);
+        for i in 0.. frames.len(){
+            let frame = &frames[i];
+            self.guest_mem.map(guest_range.start + PAGE_SIZE * i, frame.paddr(), PAGE_SIZE, prop);
         }
         Ok(())
     }
 
     fn unmap_guest_memory(&self, guest_range: Range<Gpaddr>) -> Result<usize> {
         let preempt_guard = disable_preempt();
-        let mut cursor = self.guest_mem.cursor_mut(&preempt_guard, &guest_range)?;
-        Ok(cursor.unmap(guest_range.end - guest_range.start))
+        Ok(self.guest_mem.unmap(guest_range.start, guest_range.end))
     }
 
     fn read(&self, gpa: Gpaddr, writer: &mut VmWriter) -> Result<usize> {

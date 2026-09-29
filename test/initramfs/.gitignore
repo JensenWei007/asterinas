@@ -1,1 +1,6 @@
 build/
+
+src/qemu*
+src/fw*
+src/Image
+src/rootfs.img

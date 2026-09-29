@@ -30,6 +30,7 @@ impl GuestTimer {
 pub type TimerNextEventFunction = dyn Fn(u64) -> usize + Sync + Send + 'static;
 
 /// 1
+#[repr(C)]
 #[derive(Default)]
 pub struct VcpuTimer {
 	/// Flag for whether init is done
@@ -44,7 +45,7 @@ pub struct VcpuTimer {
 	/// Flag to check if sstc is enabled or not */
 	sstc_enabled: bool,
 	// A function pointer to switch between stimecmp or hrtimer at runtime */
-	timer_next_event: Option<&'static TimerNextEventFunction>,
+	pub timer_next_event: Option<&'static TimerNextEventFunction>,
 }
 
 fn kvm_riscv_vcpu_update_vstimecmp(ncycles: u64) -> usize {
@@ -66,6 +67,13 @@ impl VcpuTimer {
 		} else {
 			self.sstc_enabled = false;
 			panic!("VcpuTimer: SSTC should be enabled!");
+		}
+	}
+
+	/// 1
+	pub fn sync(&mut self) {
+		unsafe {
+			self.next_cycles = Vstimecmp::read() as u64;
 		}
 	}
 }

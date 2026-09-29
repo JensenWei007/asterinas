@@ -65,6 +65,7 @@ impl FileLike for VcpuFile {
     fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             Run => {
+                //error!("=======vcpu ioctl.  run");
                 self.ioctl_run()
             }
             cmd @ GetOneReg => {
@@ -98,6 +99,15 @@ impl FileLike for VcpuFile {
                 self.vcpu.set_mp_state(state)?;
                 Ok(0)
             }
+            GetStatsFd => {
+                // TODO
+                Ok(10)
+            }
+            cmd @ Interrupt => {
+                let irq = cmd.read()?;
+                self.vcpu.arch.lock().set_interrupt(irq.irq);
+                Ok(0)
+            }
             _ => {
                 let ioctl_nr = raw_ioctl.cmd() & 0xff;
                 error!(
@@ -125,13 +135,11 @@ impl FileLike for VcpuFile {
 
 impl VcpuFile {
     fn ioctl_run(&self) -> Result<i32> {
-        #[cfg(target_arch = "x86_64")]
-        self.complete_pending_operation()?;
-        if self.immediate_exit()? {
-            return_errno_with_message!(Errno::EINTR, "KVM_RUN interrupted by immediate_exit");
-        }
+        //if self.immediate_exit()? {
+        //    return_errno_with_message!(Errno::EINTR, "KVM_RUN interrupted by immediate_exit");
+        //}
 
-        let Some(exit_info) = self.vcpu.run(|| self.run_interrupted())? else {
+        let Some(exit_info) = self.vcpu.run(self.run_page.clone(),|| self.run_interrupted())? else {
             return_errno_with_message!(Errno::EINTR, "KVM_RUN was interrupted");
         };
         self.write_exit_to_run_page(exit_info)?;

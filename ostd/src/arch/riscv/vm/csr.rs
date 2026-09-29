@@ -37,6 +37,13 @@ macro_rules! define_csr {
                     Self::write(current & !mask);
                 }
             }
+
+            #[inline]
+            pub unsafe fn swap(value: usize) -> usize {
+                let old: usize;
+                unsafe { asm!(concat!("csrrw {0}, ", stringify!($addr), ", {1}"), out(reg) old, in(reg) value) };
+                old
+            }
         }
     };
 }
@@ -84,3 +91,8 @@ pub const HSTATUS_SPVP:usize = 0x00000100;
 pub const HSTATUS_SPV:usize = 0x00000080;
 
 
+pub const ENVCFG_STCE:usize = 0x1 << 63;
+pub const ENVCFG_ADUE:usize = 0x1 << 61;
+pub const ENVCFG_CBIE:usize = 0x3 << 4;
+pub const ENVCFG_CBCFE:usize = 0x1 << 6;
+pub const ENVCFG_CBZE:usize = 0x1 << 7;

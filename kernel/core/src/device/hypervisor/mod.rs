@@ -7,6 +7,7 @@ mod vcpu_file;
 mod vm;
 mod vm_file;
 mod vm_memory;
+mod stats_file;
 
 pub use device::HypervisorDevice;
 

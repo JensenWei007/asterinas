@@ -1,5 +1,4 @@
 ///1
-
 pub const KVM_REG_ARCH_MASK:u64 = 0xff00000000000000;
 pub const KVM_REG_SIZE_MASK:u64 = 0x00f0000000000000;
 
@@ -130,6 +129,7 @@ impl KvmCore {
     pub const MODE: u64 = Self::PC + 32;
 }
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 pub struct KvmVcpuCsr {
 	pub vsstatus: usize,

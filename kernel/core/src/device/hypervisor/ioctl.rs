@@ -32,7 +32,9 @@ pub(super) const KVM_CAP_NR_MEMSLOTS: usize = 10;
 pub(super) const KVM_CAP_MP_STATE: usize = 14;
 pub(super) const KVM_CAP_COALESCED_MMIO: usize = 15;
 pub(super) const KVM_CAP_DESTROY_MEMORY_REGION_WORKS: usize = 21;
+pub(super) const KVM_CAP_JOIN_MEMORY_REGIONS_WORKS: usize = 30;
 pub(super) const KVM_CAP_IOEVENTFD: usize = 36;
+pub(super) const KVM_CAP_INTERNAL_ERROR_DATA: usize = 40;
 pub(super) const KVM_CAP_ENABLE_CAP: usize = 54;
 pub(super) const KVM_CAP_XSAVE: usize = 55;
 pub(super) const KVM_CAP_GET_TSC_KHZ: usize = 61;
@@ -99,16 +101,42 @@ pub(super) const KVM_RUN_MMIO_DATA_OFFSET: usize = 40;
 pub(super) const KVM_RUN_MMIO_LEN_OFFSET: usize = 48;
 pub(super) const KVM_RUN_MMIO_IS_WRITE_OFFSET: usize = 52;
 
+pub(super) const KVM_EXIT_UNKNOWN: u32 = 0;
 pub(super) const KVM_EXIT_IO: u32 = 2;
+pub(super) const KVM_EXIT_DEBUG: u32 = 2;
 pub(super) const KVM_EXIT_HLT: u32 = 5;
 pub(super) const KVM_EXIT_MMIO: u32 = 6;
 pub(super) const KVM_EXIT_SHUTDOWN: u32 = 8;
 pub(super) const KVM_EXIT_INTERNAL_ERROR: u32 = 17;
+pub(super) const KVM_EXIT_RISCV_SBI: u32 = 35;
+pub(super) const KVM_EXIT_RISCV_CSR: u32 = 36;
 
 pub(super) const KVM_EXIT_IO_IN: u8 = 0;
 pub(super) const KVM_EXIT_IO_OUT: u8 = 1;
 
 pub(super) const IA32_TSC_DEADLINE: u32 = 0x6e0;
+
+/* Exception causes */
+pub(super) const EXC_INST_MISALIGNED: usize = 0;
+pub(super) const EXC_INST_ACCESS: usize = 1;
+pub(super) const EXC_INST_ILLEGAL: usize = 2;
+pub(super) const EXC_BREAKPOINT: usize = 3;
+pub(super) const EXC_LOAD_MISALIGNED: usize = 4;
+pub(super) const EXC_LOAD_ACCESS: usize = 5;
+pub(super) const EXC_STORE_MISALIGNED: usize = 6;
+pub(super) const EXC_STORE_ACCESS: usize = 7;
+pub(super) const EXC_SYSCALL: usize = 8;
+pub(super) const EXC_HYPERVISOR_SYSCALL: usize = 9;
+pub(super) const EXC_SUPERVISOR_SYSCALL: usize = 10;
+pub(super) const EXC_INST_PAGE_FAULT: usize = 12;
+pub(super) const EXC_LOAD_PAGE_FAULT: usize = 13;
+pub(super) const EXC_STORE_PAGE_FAULT: usize = 15;
+pub(super) const EXC_INST_GUEST_PAGE_FAULT: usize = 20;
+pub(super) const EXC_LOAD_GUEST_PAGE_FAULT: usize = 21;
+pub(super) const EXC_VIRTUAL_INST_FAULT: usize = 22;
+pub(super) const EXC_STORE_GUEST_PAGE_FAULT: usize = 23;
+
+pub(super) const INSN_OPCODE_SYSTEM: usize = 28;
 
 // KVM _IO commands may still pass scalar values in the ioctl argument.
 // The command word itself encodes no direction or data size for them.
@@ -133,11 +161,14 @@ pub(super) type EnableCap = ioc!(KVM_ENABLE_CAP, 0xAE, 0xa3, InData<EnableCapDat
 
 // VCPU ioctls.
 pub(super) type Run = ioc!(KVM_RUN, 0xAE, 0x80, NoData);
+pub(super) type Interrupt = ioc!(KVM_INTERRUPT, 0xAE, 0x86, InData<KvmInterrupt>);
 // 这里都需要设置为InData，因为实际传入的是id和addr, 需要分别写到这个地址和从这个地址读
-pub(super) type GetOneReg = ioc!(KVM_GET_ONE_REG, 0xAE, 0xAB, InOutData<OneReg>);
-pub(super) type SetOneReg = ioc!(KVM_SET_ONE_REG, 0xAE, 0xAC, InOutData<OneReg>);
+// TODO: 这里存在BUG, 使用InOutData会无法识别, 
+pub(super) type GetOneReg = ioc!(KVM_GET_ONE_REG, 0xAE, 0xAB, InData<OneReg>);
+pub(super) type SetOneReg = ioc!(KVM_SET_ONE_REG, 0xAE, 0xAC, InData<OneReg>);
 pub(super) type GetRegList = ioc!(KVM_GET_REG_LIST, 0xAE, 0xB0, InOutData<RegList>);
 pub(super) type SetMpState = ioc!(KVM_SET_MP_STATE, 0xAE, 0x99, InData<MpState>);
+pub(super) type GetStatsFd = ioc!(KVM_GET_STATS_FD, 0xAE, 0xCE, NoData);
 
 #[cfg(target_arch = "riscv64")]
 pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
@@ -147,6 +178,9 @@ pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
         | KVM_CAP_DESTROY_MEMORY_REGION_WORKS
         | KVM_CAP_COALESCED_MMIO
         | KVM_CAP_COALESCED_PIO
+        | KVM_CAP_JOIN_MEMORY_REGIONS_WORKS
+        | KVM_CAP_INTERNAL_ERROR_DATA
+        | KVM_CAP_IOEVENTFD_ANY_LENGTH
 //        | KVM_CAP_READONLY_MEM //TODOWJX: impl this
         | KVM_CAP_MP_STATE
 //        | KVM_CAP_SET_GUEST_DEBUG  //TODOWJX: impl this
@@ -285,4 +319,10 @@ pub(super) struct KvmRun {
     pub cr8: u64,
     pub apic_base: u64,
     pub exit_data: [u8; KVM_RUN_EXIT_DATA_SIZE],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(super) struct KvmInterrupt {
+    pub irq: u32,
 }

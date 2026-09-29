@@ -23,6 +23,7 @@ pub enum VcpuRunState {
 }
 
 /// 1
+#[repr(C)]
 #[derive(Default)]
 pub struct VcpuContext {
     pub zero: usize,
@@ -142,7 +143,7 @@ impl VcpuContext {
             32 => Some(self.sepc),
             33 => Some(self.sstatus),
             34 => Some(self.hstatus),
-            _ => None,
+            _ => {panic!("Context: get reg: {}", index)},
         }
     }
 
@@ -184,7 +185,7 @@ impl VcpuContext {
             32 => { self.sepc = value; true }
             33 => { self.sstatus = value; true }
             34 => { self.hstatus = value; true }
-            _ => false,
+            _ => {panic!("Context: set reg!")},
         }
     }
 }
