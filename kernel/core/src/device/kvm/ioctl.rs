@@ -1,0 +1,278 @@
+// SPDX-License-Identifier: MPL-2.0
+
+//! Ioctl api compatible with Linux KVM.
+//! KVM api: https://www.kernel.org/doc/html/latest/virt/kvm/api.html
+
+use ostd::{
+    arch::vm::{
+        onereg::*,
+        types::*,
+    },
+};
+
+use crate::{
+    prelude::*,
+    util::ioctl::{InData, InOutData, NoData, RawIoctl},
+    ioc,
+};
+
+const KVM_INTERRUPT_BITMAP_WORDS: usize = (256 + 63) / 64;
+const KVM_APIC_REG_SIZE: usize = 0x400;
+pub(super) const KVM_MEM_READONLY: u32 = 1 << 1;
+
+pub(super) const KVM_API_VERSION: i32 = 12;
+pub(super) const KVM_MAX_VCPUS: i32 = 64;
+
+pub(super) const KVM_CAP_IRQCHIP: usize = 0;
+pub(super) const KVM_CAP_USER_MEMORY: usize = 3;
+pub(super) const KVM_CAP_NR_VCPUS: usize = 9;
+pub(super) const KVM_CAP_NR_MEMSLOTS: usize = 10;
+pub(super) const KVM_CAP_MP_STATE: usize = 14;
+pub(super) const KVM_CAP_COALESCED_MMIO: usize = 15;
+pub(super) const KVM_CAP_DESTROY_MEMORY_REGION_WORKS: usize = 21;
+pub(super) const KVM_CAP_JOIN_MEMORY_REGIONS_WORKS: usize = 30;
+pub(super) const KVM_CAP_IOEVENTFD: usize = 36;
+pub(super) const KVM_CAP_INTERNAL_ERROR_DATA: usize = 40;
+pub(super) const KVM_CAP_ENABLE_CAP: usize = 54;
+pub(super) const KVM_CAP_XSAVE: usize = 55;
+pub(super) const KVM_CAP_GET_TSC_KHZ: usize = 61;
+pub(super) const KVM_CAP_MAX_VCPUS: usize = 66;
+pub(super) const KVM_CAP_ONE_REG: usize = 70;
+pub(super) const KVM_CAP_TSC_DEADLINE_TIMER: usize = 72;
+pub(super) const KVM_CAP_SIGNAL_MSI: usize = 77;
+pub(super) const KVM_CAP_READONLY_MEM: usize = 81;
+
+pub(super) const KVM_CAP_ENABLE_CAP_VM: usize = 98;
+pub(super) const KVM_CAP_SPLIT_IRQCHIP: usize = 121;
+pub(super) const KVM_CAP_IOEVENTFD_ANY_LENGTH: usize = 122;
+pub(super) const KVM_CAP_MAX_VCPU_ID: usize = 128;
+pub(super) const KVM_CAP_IMMEDIATE_EXIT: usize = 136;
+pub(super) const KVM_CAP_COALESCED_PIO: usize = 162;
+pub(super) const KVM_CAP_DIRTY_LOG_RING: usize = 192;
+pub(super) const KVM_CAP_VM_GPA_BITS: usize = 207;
+pub(super) const KVM_CAP_DIRTY_LOG_RING_ACQ_REL: usize = 223;
+pub(super) const KVM_CAP_RISCV_MP_STATE_RESET: usize = 242;
+
+pub(super) const KVM_IRQCHIP_PIC_MASTER: u32 = 0;
+pub(super) const KVM_IRQCHIP_PIC_SLAVE: u32 = 1;
+pub(super) const KVM_IRQCHIP_IOAPIC: u32 = 2;
+pub(super) const KVM_IRQ_ROUTING_IRQCHIP: u32 = 1;
+pub(super) const KVM_IRQ_ROUTING_MSI: u32 = 2;
+pub(super) const KVM_IOEVENTFD_FLAG_DATAMATCH: u32 = 1 << 0;
+pub(super) const KVM_IOEVENTFD_FLAG_PIO: u32 = 1 << 1;
+pub(super) const KVM_IOEVENTFD_FLAG_DEASSIGN: u32 = 1 << 2;
+pub(super) const KVM_IRQFD_FLAG_DEASSIGN: u32 = 1 << 0;
+pub(super) const KVM_IRQFD_FLAG_RESAMPLE: u32 = 1 << 1;
+pub(super) const KVM_MAX_IRQ_ROUTES: usize = 4096;
+pub(super) const KVM_MAX_NR_MEMSLOTS: i32 = 32;
+const KVM_IRQCHIP_PAYLOAD_SIZE: usize = 512;
+
+pub(super) const KVM_MP_STATE_RUNNABLE: u32 = 0;
+pub(super) const KVM_MP_STATE_UNINITIALIZED: u32 = 1;
+pub(super) const KVM_MP_STATE_INIT_RECEIVED: u32 = 2;
+pub(super) const KVM_MP_STATE_HALTED: u32 = 3;
+
+pub(super) const KVM_COALESCED_MMIO_PAGE_OFFSET: usize = 2;
+pub(super) const KVM_RUN_MMAP_SIZE: usize = (KVM_COALESCED_MMIO_PAGE_OFFSET + 1) * PAGE_SIZE;
+pub(super) const KVM_RUN_STRUCT_SIZE: usize = 2352;
+const KVM_RUN_EXIT_DATA_OFFSET: usize = 32;
+const KVM_RUN_EXIT_DATA_SIZE: usize = KVM_RUN_STRUCT_SIZE - KVM_RUN_EXIT_DATA_OFFSET;
+
+pub(super) const KVM_RUN_IMMEDIATE_EXIT_OFFSET: usize = 1;
+pub(super) const KVM_RUN_EXIT_REASON_OFFSET: usize = 8;
+pub(super) const KVM_RUN_READY_FOR_INTERRUPT_INJECTION_OFFSET: usize = 12;
+pub(super) const KVM_RUN_IF_FLAG_OFFSET: usize = 13;
+pub(super) const KVM_RUN_FLAGS_OFFSET: usize = 14;
+pub(super) const KVM_RUN_CR8_OFFSET: usize = 16;
+pub(super) const KVM_RUN_APIC_BASE_OFFSET: usize = 24;
+
+pub(super) const KVM_RUN_IO_DIRECTION_OFFSET: usize = 32;
+pub(super) const KVM_RUN_IO_SIZE_OFFSET: usize = 33;
+pub(super) const KVM_RUN_IO_PORT_OFFSET: usize = 34;
+pub(super) const KVM_RUN_IO_COUNT_OFFSET: usize = 36;
+pub(super) const KVM_RUN_IO_DATA_OFFSET_OFFSET: usize = 40;
+pub(super) const KVM_RUN_IO_DATA_OFFSET: usize = 2560;
+pub(super) const KVM_RUN_IO_DATA_CAPACITY: usize = PAGE_SIZE;
+
+pub(super) const KVM_RUN_MMIO_PHYS_ADDR_OFFSET: usize = 32;
+pub(super) const KVM_RUN_MMIO_DATA_OFFSET: usize = 40;
+pub(super) const KVM_RUN_MMIO_LEN_OFFSET: usize = 48;
+pub(super) const KVM_RUN_MMIO_IS_WRITE_OFFSET: usize = 52;
+
+pub(super) const KVM_EXIT_UNKNOWN: u32 = 0;
+pub(super) const KVM_EXIT_IO: u32 = 2;
+pub(super) const KVM_EXIT_DEBUG: u32 = 2;
+pub(super) const KVM_EXIT_HLT: u32 = 5;
+pub(super) const KVM_EXIT_MMIO: u32 = 6;
+pub(super) const KVM_EXIT_SHUTDOWN: u32 = 8;
+pub(super) const KVM_EXIT_INTERNAL_ERROR: u32 = 17;
+pub(super) const KVM_EXIT_RISCV_SBI: u32 = 35;
+pub(super) const KVM_EXIT_RISCV_CSR: u32 = 36;
+
+pub(super) const KVM_EXIT_IO_IN: u8 = 0;
+pub(super) const KVM_EXIT_IO_OUT: u8 = 1;
+
+pub(super) const IA32_TSC_DEADLINE: u32 = 0x6e0;
+
+/* Exception causes */
+pub(super) const EXC_INST_MISALIGNED: usize = 0;
+pub(super) const EXC_INST_ACCESS: usize = 1;
+pub(super) const EXC_INST_ILLEGAL: usize = 2;
+pub(super) const EXC_BREAKPOINT: usize = 3;
+pub(super) const EXC_LOAD_MISALIGNED: usize = 4;
+pub(super) const EXC_LOAD_ACCESS: usize = 5;
+pub(super) const EXC_STORE_MISALIGNED: usize = 6;
+pub(super) const EXC_STORE_ACCESS: usize = 7;
+pub(super) const EXC_SYSCALL: usize = 8;
+pub(super) const EXC_HYPERVISOR_SYSCALL: usize = 9;
+pub(super) const EXC_SUPERVISOR_SYSCALL: usize = 10;
+pub(super) const EXC_INST_PAGE_FAULT: usize = 12;
+pub(super) const EXC_LOAD_PAGE_FAULT: usize = 13;
+pub(super) const EXC_STORE_PAGE_FAULT: usize = 15;
+pub(super) const EXC_INST_GUEST_PAGE_FAULT: usize = 20;
+pub(super) const EXC_LOAD_GUEST_PAGE_FAULT: usize = 21;
+pub(super) const EXC_VIRTUAL_INST_FAULT: usize = 22;
+pub(super) const EXC_STORE_GUEST_PAGE_FAULT: usize = 23;
+
+pub(super) const INSN_OPCODE_SYSTEM: usize = 28;
+
+// KVM _IO commands may still pass scalar values in the ioctl argument.
+// The command word itself encodes no direction or data size for them.
+
+// System ioctls.
+pub(super) type GetApiVersion = ioc!(KVM_GET_API_VERSION, 0xAE, 0x00, NoData);
+pub(super) type CreateVm = ioc!(KVM_CREATE_VM, 0xAE, 0x01, NoData);
+//pub(super) type GetMsrIndexList = ioc!(KVM_GET_MSR_INDEX_LIST, 0xAE, 0x02, InOutData<MsrList>);
+pub(super) type CheckExtension = ioc!(KVM_CHECK_EXTENSION, 0xAE, 0x03, NoData);
+pub(super) type GetVcpuMmapSize = ioc!(KVM_GET_VCPU_MMAP_SIZE, 0xAE, 0x04, NoData);
+
+// VM ioctls.
+pub(super) type CreateVcpu = ioc!(KVM_CREATE_VCPU, 0xAE, 0x41, NoData);
+pub(super) type SetUserMemoryRegion = ioc!(
+    KVM_SET_USER_MEMORY_REGION,
+    0xAE,
+    0x46,
+    InData<UserMemoryRegion>
+);
+pub(super) type IoEventFd = ioc!(KVM_IOEVENTFD, 0xAE, 0x79, InData<IoEventFdConfig>);
+pub(super) type EnableCap = ioc!(KVM_ENABLE_CAP, 0xAE, 0xa3, InData<EnableCapData>);
+
+// VCPU ioctls.
+pub(super) type Run = ioc!(KVM_RUN, 0xAE, 0x80, NoData);
+pub(super) type Interrupt = ioc!(KVM_INTERRUPT, 0xAE, 0x86, InData<KvmInterrupt>);
+pub(super) type GetOneReg = ioc!(KVM_GET_ONE_REG, 0xAE, 0xAB, InData<OneReg>);
+pub(super) type SetOneReg = ioc!(KVM_SET_ONE_REG, 0xAE, 0xAC, InData<OneReg>);
+pub(super) type GetRegList = ioc!(KVM_GET_REG_LIST, 0xAE, 0xB0, InOutData<RegList>);
+pub(super) type SetMpState = ioc!(KVM_SET_MP_STATE, 0xAE, 0x99, InData<MpState>);
+pub(super) type GetStatsFd = ioc!(KVM_GET_STATS_FD, 0xAE, 0xCE, NoData);
+
+pub(super) fn check_extension(raw_ioctl: RawIoctl) -> i32 {
+    match raw_ioctl.arg() {
+        KVM_CAP_IOEVENTFD
+        | KVM_CAP_USER_MEMORY
+        | KVM_CAP_DESTROY_MEMORY_REGION_WORKS
+        | KVM_CAP_COALESCED_MMIO
+        | KVM_CAP_COALESCED_PIO
+        | KVM_CAP_JOIN_MEMORY_REGIONS_WORKS
+        | KVM_CAP_INTERNAL_ERROR_DATA
+        | KVM_CAP_IOEVENTFD_ANY_LENGTH
+        | KVM_CAP_MP_STATE
+        | KVM_CAP_IMMEDIATE_EXIT => 1,
+        KVM_CAP_NR_VCPUS => 1,
+        KVM_CAP_MAX_VCPUS => KVM_MAX_VCPUS,
+        KVM_CAP_NR_MEMSLOTS => KVM_MAX_NR_MEMSLOTS,
+
+        _ => 0,
+    }
+}
+
+pub(super) fn read_vcpu_id(raw_ioctl: RawIoctl) -> Result<u32> {
+    Ok(u32::try_from(raw_ioctl.arg())?)
+}
+
+/// `struct kvm_userspace_memory_region`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(super) struct UserMemoryRegion {
+    pub slot: u32,
+    pub flags: u32,
+    pub guest_phys_addr: u64,
+    pub memory_size: u64,
+    pub userspace_addr: u64,
+}
+
+/// The common `struct kvm_ioeventfd`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod)]
+pub(super) struct IoEventFdConfig {
+    pub datamatch: u64,
+    pub addr: u64,
+    pub len: u32,
+    pub fd: i32,
+    pub flags: u32,
+    pub pad: [u8; 36],
+}
+
+impl Default for IoEventFdConfig {
+    fn default() -> Self {
+        Self {
+            datamatch: 0,
+            addr: 0,
+            len: 0,
+            fd: 0,
+            flags: 0,
+            pad: [0; 36],
+        }
+    }
+}
+
+/// The common `struct kvm_enable_cap`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod)]
+pub(super) struct EnableCapData {
+    pub cap: u32,
+    pub flags: u32,
+    pub args: [u64; 4],
+    pub pad: [u8; 64],
+}
+
+impl Default for EnableCapData {
+    fn default() -> Self {
+        Self {
+            cap: 0,
+            flags: 0,
+            args: [0; 4],
+            pad: [0; 64],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub struct RegList {
+    /// The number of regs
+    pub n: u64,
+    // Here is a FLEX_ARRAY, but in rust we do not write it
+}
+
+#[cfg(target_arch = "riscv64")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod)]
+pub(super) struct KvmRun {
+    pub request_interrupt_window: u8,
+    pub immediate_exit: u8,
+    pub padding1: [u8; 6],
+    pub exit_reason: u32,
+    pub ready_for_interrupt_injection: u8,
+    pub if_flag: u8,
+    pub flags: u16,
+    pub cr8: u64,
+    pub apic_base: u64,
+    pub exit_data: [u8; KVM_RUN_EXIT_DATA_SIZE],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(super) struct KvmInterrupt {
+    pub irq: u32,
+}

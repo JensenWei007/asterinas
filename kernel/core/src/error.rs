@@ -177,6 +177,10 @@ impl Error {
     pub const fn error(&self) -> Errno {
         self.errno
     }
+
+    pub const fn message(&self) -> Option<&'static str> {
+        self.msg
+    }
 }
 
 impl From<Errno> for Error {
