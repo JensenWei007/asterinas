@@ -1,0 +1,71 @@
+use crate::arch::vm::vcpu::VcpuArchInner;
+use super::{KVM_REG_ARCH_MASK, KVM_REG_SIZE_MASK};
+use super::{KVM_REG_RISCV_CONFIG, KVM_RISCV_BASE_ISA_MASK, KVM_REG_RISCV, KVM_REG_SIZE_U64};
+use crate::arch::mm::cmo_block_size;
+use crate::arch::cpu::extension::{has_extensions, IsaExtensions};
+use crate::arch::vm::types::{HGATP_MODE_48, HGATP_MODE_SHIFT};
+use crate::prelude::*;
+use crate::Error;
+
+struct KvmConfig {
+    isa: usize,
+    zicbom_block_size: usize,
+    mvendorid: usize,
+    marchid: usize,
+    mimpid: usize,
+    zicboz_block_size: usize,
+    satp_mode: usize,
+    zicbop_block_size: usize,
+}
+
+impl KvmConfig {
+    const ISA: usize = 0;
+    const ZICBOM_BLOCK_SIZE: usize = Self::ISA + 1;
+    const MVENDORID: usize = Self::ZICBOM_BLOCK_SIZE + 1;
+    const MARCHID: usize = Self::MVENDORID + 1;
+    const MIMPID: usize = Self::MARCHID + 1;
+    const ZICBOZ_BLOCK_SIZE: usize = Self::MIMPID + 1;
+    const SATP_MODE: usize = Self::ZICBOZ_BLOCK_SIZE + 1;
+    const ZICBOP_BLOCK_SIZE: usize = Self::SATP_MODE + 1;
+}
+
+impl VcpuArchInner {
+    pub(super) fn get_config(&self, reg_id: usize) -> Result<usize> {
+        match reg_id & !(KVM_REG_ARCH_MASK | KVM_REG_SIZE_MASK | KVM_REG_RISCV_CONFIG) {
+            KvmConfig::ISA => Ok(KVM_RISCV_BASE_ISA_MASK & self.isa[0] as usize),
+            KvmConfig::ZICBOM_BLOCK_SIZE => {
+                if has_extensions(IsaExtensions::ZICBOM) 
+                    {Ok(cmo_block_size())}
+                else 
+                    {Ok(0)}
+            }
+            KvmConfig::MVENDORID => Ok(self.mvendorid),
+            KvmConfig::MARCHID => Ok(self.marchid),
+            KvmConfig::MIMPID => Ok(self.mimpid),
+            KvmConfig::ZICBOZ_BLOCK_SIZE => Ok(0),
+            KvmConfig::SATP_MODE => Ok(HGATP_MODE_48 >> HGATP_MODE_SHIFT),
+            KvmConfig::ZICBOP_BLOCK_SIZE => Ok(0),
+            _ => Err(Error::NotFound),
+        }
+    }
+
+    pub(super) fn set_config(&self, _reg_id: usize, _reg_val: usize) -> Result<()> {
+        todo!("Onereg: set_config is not impled!")
+    }
+
+    pub(super) fn copy_config_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> usize {
+        let mut n = 0;
+        for i in 0..(size_of::<KvmConfig>()/ size_of::<usize>()) {
+            let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_CONFIG | i;
+            if let Some(vec) = vec.as_deref_mut() {
+                vec.push(reg);
+            }
+            n+=1;
+        }
+        n
+    }
+
+    pub(super) fn num_config_regs(&self) -> usize {
+        self.copy_config_reg_vec(None)
+    }
+}

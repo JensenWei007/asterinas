@@ -19,6 +19,8 @@ pub enum Error {
     NotEnoughResources,
     /// Arithmetic Overflow occurred.
     Overflow,
+    /// No such file or directory
+    NotFound,
 }
 
 impl From<PageTableError> for Error {
