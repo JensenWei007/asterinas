@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::arch::cpu::extension::{IsaExtensions, has_extensions};
 use crate::arch::vm::csr::Vstimecmp;
 

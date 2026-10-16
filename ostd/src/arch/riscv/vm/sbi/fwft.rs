@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{KvmVcpuSbiExtension, KvmVcpuSbiReturn};
 use crate::arch::vm::vcpu::VcpuArchInner;
 use super::KVM_REG_RISCV_SBI_FWFT;

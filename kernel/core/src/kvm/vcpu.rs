@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{
     vm::Vm,
     arch::vcpu::VcpuArch,
@@ -8,7 +10,7 @@ use crate::util::ioctl::RawIoctl;
 
 pub struct Vcpu {
     id: u32,
-    pub vm: Weak<Vm>,
+    vm: Weak<Vm>,
     run_lock: Mutex<()>,
     arch: VcpuArch,
 }

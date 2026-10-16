@@ -13,16 +13,14 @@ use crate::{
     context::current_userspace,
     dispatch_ioctl,
     vm::vmar::FileMmapRequest,
-    kvm::vm::Vm,
-    kvm::vcpu::Vcpu,
-    kvm::run_page::KvmRun,
+    kvm::{Vm, Vcpu, KvmRun},
 };
 
 use super::ioctl::{KVM_RUN_MMAP_SIZE, Run, GetStatsFd, GetOneReg, SetOneReg};
 
 /// VCPU file descriptor
 pub(super) struct VcpuFile {
-    #[allow(unused)]
+    #[expect(dead_code, reason = "Acts as a placeholder; will be used when other KVM implementations are added in the future.")]
     vm: Arc<Vm>,
     vcpu: Arc<Vcpu>,
     run: Arc<KvmRun>,

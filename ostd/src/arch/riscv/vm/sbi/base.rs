@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{KvmVcpuSbiExtension, KvmVcpuSbiReturn, KvmVcpuSbiReturnError};
 use crate::arch::vm::vcpu::VcpuArchInner;
 use crate::prelude::*;
@@ -39,7 +41,7 @@ fn sbi_ext_base_handler(arch: &VcpuArchInner) -> Result<KvmVcpuSbiReturn> {
         SBI_EXT_BASE_GET_MVENDORID => rt.out_val = arch.mvendorid,
         SBI_EXT_BASE_GET_MARCHID => rt.out_val = arch.marchid,
         SBI_EXT_BASE_GET_MIMPID => rt.out_val = arch.mimpid,
-        _ => rt.err_val = KvmVcpuSbiReturnError::SbiErrNotSupported as usize,
+        _ => rt.err_val = KvmVcpuSbiReturnError::NotSupported as usize,
     }
 
     Ok(rt)

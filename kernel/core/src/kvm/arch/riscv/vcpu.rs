@@ -1,4 +1,6 @@
-use ostd::arch::vm::{VcpuArchInner, KvmCpuTrap, INSN_OPCODE_MASK, INSN_OPCODE_SHIFT, handle_system_opcode_insn, KvmInsnReturn, handle_sbi_call, insn_len, CAUSE_IRQ_FLAG};
+// SPDX-License-Identifier: MPL-2.0
+
+use ostd::arch::vm::{VcpuArchInner, KvmCpuTrap, INSN_OPCODE_MASK, INSN_OPCODE_SHIFT, KvmInsnReturn, CAUSE_IRQ_FLAG};
 
 use crate::kvm::{
     ioctl::{KVM_RUN_EXIT_REASON_OFFSET, KVM_RUN_IMMEDIATE_EXIT_OFFSET, KVM_EXIT_UNKNOWN, KVM_EXIT_MMIO, KVM_EXIT_RISCV_SBI, 
@@ -94,15 +96,10 @@ impl VcpuArch {
     }
 
     pub(in crate::kvm) fn run(&self, run: Arc<KvmRun>, page_tabe_root: u64) -> Result<()> {
-        // If the vCPU has already run at least once, 
-        // then apply the configuration.
-        let at_least_once = self.inner.lock().is_ran_at_least_once();
-        if !at_least_once {
+        let first_run = self.inner.lock().mark_ran_once();
+        if first_run {
             self.inner.lock().config_ran_once();
         }
-
-        // Mark this VCPU ran at least once
-	    self.inner.lock().ran_at_least_once();
 
         // Process the data returned after being handled by the user.
         match run.read_run_val::<u32>(KVM_RUN_EXIT_REASON_OFFSET)? {
@@ -157,7 +154,7 @@ impl VcpuArch {
         let insn = trap.get_virt_insn();
 
         let ret = match (insn & INSN_OPCODE_MASK) >> INSN_OPCODE_SHIFT {
-            INSN_OPCODE_SYSTEM => handle_system_opcode_insn(insn),
+            INSN_OPCODE_SYSTEM => ostd::arch::vm::handle_system_opcode_insn(insn),
             other => todo!("virtual_insn: Other insns({:#x}) is not impled!", other),
         };
 
@@ -168,7 +165,7 @@ impl VcpuArch {
 
     fn handle_insn_return(&self, insn: usize, ret: KvmInsnReturn) {
         match ret {
-            KvmInsnReturn::KvmInsnContinueNextSepc => self.inner.lock().guest_context.step_sepc(insn_len(insn)),
+            KvmInsnReturn::ContinueNextSepc => self.inner.lock().guest_context.step_sepc(ostd::arch::vm::insn_len(insn)),
             _ => todo!("handle_insn_return: Other insn return is not impled!"),
         }
     }
@@ -245,7 +242,7 @@ impl VcpuArch {
             }
             EXC_SUPERVISOR_SYSCALL => {
                 if self.inner.lock().trap_is_from_guest() {
-                    ret = Ok(handle_sbi_call(&mut self.inner.lock())?.into())
+                    ret = Ok(ostd::arch::vm::handle_sbi_call(&mut self.inner.lock())?.into())
                 }
             }
             _ => todo!("VcpuArch exit: Trap({:#x}) is not impled!", trap.get_trap_type()),

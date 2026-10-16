@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{InsnFunc, KvmInsnReturn};
 
 const INSN_MASK_WRS: usize = 0xffffffff;

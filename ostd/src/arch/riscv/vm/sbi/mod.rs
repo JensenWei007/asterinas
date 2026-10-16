@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::prelude::*;
 use crate::Error;
 use crate::arch::vm::vcpu::VcpuArchInner;
@@ -37,38 +39,38 @@ const KVM_REG_RISCV_SBI_FWFT: usize = 0x1 << KVM_REG_RISCV_SUBTYPE_SHIFT;
 /// The status of SBI extensions
 #[derive(Clone, Copy, PartialEq)]
 enum KvmRiscvSbiExtStatus {
-	KvmRiscvSbiExtStatusUninitialized,
-	KvmRiscvSbiExtStatusUnavailable,
-	KvmRiscvSbiExtStatusEnabled,
-	KvmRiscvSbiExtStatusDisabled,
+	Uninitialized,
+	Unavailable,
+	Enabled,
+	Disabled,
 }
 
 /// SBI extension IDs specific to KVM. This is not the same as the SBI
 /// extension IDs defined by the RISC-V SBI specification.
 #[derive(Clone, Copy)]
 enum KvmRiscvSbiExtId {
-	KvmRiscvSbiExtV01,
-	KvmRiscvSbiExtTime,
-	KvmRiscvSbiExtIpi,
-	KvmRiscvSbiExtRfence,
-	KvmRiscvSbiExtSrst,
-	KvmRiscvSbiExtHsm,
-	KvmRiscvSbiExtPmu,
-	KvmRiscvSbiExtExperimental,
-	KvmRiscvSbiExtVendor,
-	KvmRiscvSbiExtDbcn,
-	KvmRiscvSbiExtSta,
-	KvmRiscvSbiExtSusp,
-	KvmRiscvSbiExtFwft,
-	KvmRiscvSbiExtMpxy,
-	KvmRiscvSbiExtMax,
+	V01,
+	Time,
+	Ipi,
+	Rfence,
+	Srst,
+	Hsm,
+	Pmu,
+	Experimental,
+	Vendor,
+	Dbcn,
+	Sta,
+	Susp,
+	Fwft,
+	Mpxy,
+	Max,
 }
 
 /// The Sbi context of Vcpu
 #[repr(C)]
 pub(super) struct VcpuSbiContext {
 	return_handled: usize,
-	ext_status: [KvmRiscvSbiExtStatus; KvmRiscvSbiExtId::KvmRiscvSbiExtMax as usize + 1],
+	ext_status: [KvmRiscvSbiExtStatus; KvmRiscvSbiExtId::Max as usize + 1],
     /// Firmware feature SBI extension context
 	fwft_context: KvmSbiFwft,
     shmem: u64,
@@ -80,7 +82,7 @@ impl VcpuSbiContext {
     pub(super) fn new() -> Self {
         Self {
             return_handled: 0,
-            ext_status: [KvmRiscvSbiExtStatus::KvmRiscvSbiExtStatusUninitialized; KvmRiscvSbiExtId::KvmRiscvSbiExtMax as usize + 1],
+            ext_status: [KvmRiscvSbiExtStatus::Uninitialized; KvmRiscvSbiExtId::Max as usize + 1],
             fwft_context: KvmSbiFwft::new(),
             shmem: 0,
             last_steal: 0,
@@ -94,9 +96,9 @@ impl VcpuSbiContext {
             let idx = entry.ext_idx as usize;
 
             if entry.ext.default_disabled {
-                self.ext_status[idx] = KvmRiscvSbiExtStatus::KvmRiscvSbiExtStatusDisabled;
+                self.ext_status[idx] = KvmRiscvSbiExtStatus::Disabled;
             } else {
-                self.ext_status[idx] = KvmRiscvSbiExtStatus::KvmRiscvSbiExtStatusEnabled;
+                self.ext_status[idx] = KvmRiscvSbiExtStatus::Enabled;
             }
 
             if let Some(func) = entry.ext.init {
@@ -122,20 +124,20 @@ struct KvmVcpuSbiReturn {
 }
 
 enum KvmVcpuSbiReturnError {
-    SbiErrFailure	= -1,
-    SbiErrNotSupported = -2,
-    SbiErrInvalidParam = -3,
-    SbiErrDenied = -4,
-    SbiErrInvalidAddress	= -5,
-    SbiErrAlreadyAvailable = -6,
-    SbiErrAlreadyStarted = -7,
-    SbiErrAlreadyStopped = -8,
-    SbiErrNoShmem = -9,
-    SbiErrInvalidState = -10,
-    SbiErrBadRange = -11,
-    SbiErrTimeout = -12,
-    SbiErrIo = -13,
-    SbiErrDeniedLocked = -14,
+    Failure	= -1,
+    NotSupported = -2,
+    InvalidParam = -3,
+    Denied = -4,
+    InvalidAddress	= -5,
+    AlreadyAvailable = -6,
+    AlreadyStarted = -7,
+    AlreadyStopped = -8,
+    NoShmem = -9,
+    InvalidState = -10,
+    BadRange = -11,
+    Timeout = -12,
+    Io = -13,
+    DeniedLocked = -14,
 }
 
 type SbiHandlerFunction = dyn Fn(&VcpuArchInner) -> Result<KvmVcpuSbiReturn> + Sync + Send + 'static;
@@ -181,63 +183,63 @@ const SBI_EXT_TABLE_SIZE: usize = 15;
 
 const SBI_EXT_TABLE: [KvmRiscvSbiExtensionEntry; SBI_EXT_TABLE_SIZE] = [
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtV01,
+        ext_idx: KvmRiscvSbiExtId::V01,
         ext: &VCPU_SBI_EXT_V01,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtMax,
+        ext_idx: KvmRiscvSbiExtId::Max,
         ext: &VCPU_SBI_EXT_BASE,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtTime,
+        ext_idx: KvmRiscvSbiExtId::Time,
         ext: &VCPU_SBI_EXT_TIME,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtIpi,
+        ext_idx: KvmRiscvSbiExtId::Ipi,
         ext: &VCPU_SBI_EXT_IPI,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtRfence,
+        ext_idx: KvmRiscvSbiExtId::Rfence,
         ext: &VCPU_SBI_EXT_RFENCE,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtSrst,
+        ext_idx: KvmRiscvSbiExtId::Srst,
         ext: &VCPU_SBI_EXT_SRST,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtHsm,
+        ext_idx: KvmRiscvSbiExtId::Hsm,
         ext: &VCPU_SBI_EXT_HSM,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtPmu,
+        ext_idx: KvmRiscvSbiExtId::Pmu,
         ext: &VCPU_SBI_EXT_PMU,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtDbcn,
+        ext_idx: KvmRiscvSbiExtId::Dbcn,
         ext: &VCPU_SBI_EXT_DBCN,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtSusp,
+        ext_idx: KvmRiscvSbiExtId::Susp,
         ext: &VCPU_SBI_EXT_SUSP,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtSta,
+        ext_idx: KvmRiscvSbiExtId::Sta,
         ext: &VCPU_SBI_EXT_STA,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtFwft,
+        ext_idx: KvmRiscvSbiExtId::Fwft,
         ext: &VCPU_SBI_EXT_FWFT,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtMpxy,
+        ext_idx: KvmRiscvSbiExtId::Mpxy,
         ext: &VCPU_SBI_EXT_MPXY,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtExperimental,
+        ext_idx: KvmRiscvSbiExtId::Experimental,
         ext: &VCPU_SBI_EXT_EXPERIMENTAL,
     },
     KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::KvmRiscvSbiExtVendor,
+        ext_idx: KvmRiscvSbiExtId::Vendor,
         ext: &VCPU_SBI_EXT_VENDOR,
     },
 ];
@@ -255,7 +257,7 @@ pub(super) fn reset_sbi(inner: &mut VcpuArchInner) -> Result<()> {
     for i in 0..SBI_EXT_TABLE_SIZE {
         let entry = &SBI_EXT_TABLE[i];
         if let Some(func) = entry.ext.reset {
-            if inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::KvmRiscvSbiExtStatusEnabled {
+            if inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::Enabled {
                 func(&mut inner.sbi_context)?;
             }
         }
@@ -293,7 +295,7 @@ pub(super) fn state_reg_count(inner: &VcpuArchInner, mut vec: Option<&mut Vec<us
             let entry = &SBI_EXT_TABLE[i];
 
             if entry.ext.get_state_reg_count.is_none() 
-            || inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::KvmRiscvSbiExtStatusEnabled {
+            || inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::Enabled {
                 continue;
             }
 

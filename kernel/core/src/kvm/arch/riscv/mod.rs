@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+//! Specific implementation of KVM (architecture-specific components)
+
 pub(super) mod vcpu;
 pub(super) mod vm;
 pub(super) mod ioctl;

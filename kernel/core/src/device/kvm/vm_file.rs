@@ -15,9 +15,8 @@ use crate::{
     },
     prelude::*,
     util::ioctl::{RawIoctl},
-    kvm::vm::Vm,
-    kvm::ioctl::{UserMemoryRegion, check_extension},
-    dispatch_ioctl
+    kvm::{Vm, UserMemoryRegion},
+    dispatch_ioctl,
 };
 
 use super::ioctl::*;
@@ -55,7 +54,7 @@ impl FileLike for VmFile {
     fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
         dispatch_ioctl!(match raw_ioctl {
             CheckExtension => {
-                Ok(check_extension(raw_ioctl))
+                Ok(crate::kvm::check_extension(raw_ioctl))
             }
             CreateVcpu => {
                 let vcpu_id = read_vcpu_id(raw_ioctl)?;
@@ -93,7 +92,7 @@ impl FileLike for VmFile {
     }
 
     fn dump_proc_fdinfo(self: Arc<Self>, _fd_flags: FdFlags) -> Box<dyn core::fmt::Display> {
-        Box::new(alloc::format!("vm_id: {}\n", self.vm.id))
+        Box::new(alloc::format!("vm_id: {}\n", self.vm.id()))
     }
 }
 

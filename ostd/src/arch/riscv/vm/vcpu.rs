@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::prelude::*;
 use super::onereg::KvmVcpuCsr;
 use crate::arch::{cpu::extension::{IsaExtensions, has_extensions}, vm::context::VcpuContext};
@@ -124,14 +126,14 @@ impl VcpuArchInner {
         Ok(())
     }
 
-    /// Check whether vcpu has ran once
-    pub fn is_ran_at_least_once(&self) -> bool {
-        self.ran_atleast_once
-    }
-
-    /// Mark vcpu has ran once
-    pub fn ran_at_least_once(&mut self) {
+    /// Mark the vCPU as having run at least once, and return whether
+    /// this call was the first time it has run.
+    ///
+    /// Returns `true` on the first run, `false` on every subsequent run.
+    pub fn mark_ran_once(&mut self) -> bool {
+        let first_run = !self.ran_atleast_once;
         self.ran_atleast_once = true;
+        first_run
     }
 
     fn reset(&mut self, _kvm_sbi_reset: bool) -> Result<()> {

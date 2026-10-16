@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 mod csr;
 mod wfi;
 mod wrs;
@@ -14,15 +16,15 @@ pub const INSN_OPCODE_MASK: usize = 0x007c;
 /// Return values used by function emulating a particular instruction
 pub enum KvmInsnReturn {
 	/// Need exit to user-space
-	KvmInsnExitToUserSpace = 0,
+	ExitToUserSpace = 0,
 	/// Continue with next sepc
-	KvmInsnContinueNextSepc,
+	ContinueNextSepc,
 	/// Continue with same sepc
-	KvmInsnContinueSameSepc,
+	ContinueSameSepc,
 	/// Inject illegal instruction trap and continue
-	KvmInsnIllegalTrap,
+	IllegalTrap,
 	/// Inject virtual instruction trap and continue
-	KvmInsnVirtualTrap
+	VirtualTrap
 }
 
 type InsnFunction = dyn Fn(usize) -> KvmInsnReturn + Sync + Send + 'static;
@@ -55,7 +57,7 @@ pub fn insn_len(insn: usize) -> usize {
 
 /// Handle the system insns
 pub fn handle_system_opcode_insn(insn: usize) -> KvmInsnReturn {
-	let mut ret = KvmInsnReturn::KvmInsnExitToUserSpace;
+	let mut ret = KvmInsnReturn::ExitToUserSpace;
     for i in 0..8 {
         let func = &SYSTEM_OPCODE_FUNCS[i];
         if insn & func.mask == func.should_match {

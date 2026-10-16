@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 .macro SAVE_HOST_GPRS
 	/* Save Host GPRs (except A0 and T0-T6) */
 	sd	ra, (KVM_ARCH_HOST_RA)(a0)

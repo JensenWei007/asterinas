@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::csr::{Hedeleg, Hideleg, Hcounteren, Hvip, Vsie};
 
 /// Enable the virtualization for cpu

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::arch::vm::vcpu::VcpuArchInner;
 use super::{KVM_REG_ARCH_MASK, KVM_REG_SIZE_MASK};
 use super::KVM_REG_RISCV_TIMER;

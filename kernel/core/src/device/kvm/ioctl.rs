@@ -1,8 +1,10 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::{
     prelude::*,
     util::ioctl::{InData, NoData},
     ioc,
-    kvm::ioctl::{UserMemoryRegion, OneReg},
+    kvm::{UserMemoryRegion, OneReg},
 };
 
 pub(super) const KVM_API_VERSION: i32 = 12;

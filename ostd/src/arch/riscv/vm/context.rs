@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use core::{arch::global_asm, u32};
 use core::mem::offset_of;
 use super::vcpu::VcpuArchInner;
@@ -59,6 +61,65 @@ struct VcpuContextSlice {
     regs_6: u32,
 }
 
+// Logical register index layout for the RISC-V vCPU context.
+//
+// These indices are the flat, stable numbering used by the KVM ABI.
+// They do NOT directly index any sub-array; each sub-array is indexed
+// by `logical_index - <BASE>`.
+//
+// The layout mirrors `VcpuContextReg` field-for-field:
+//
+//   [CORE_REGS_BASE, CORE_REGS_END)   -> regs_1 (usize, 35)
+//       x0..x31 (32) + sepc + sstatus + hstatus
+//   [FP_F_REGS_BASE, FP_F_REGS_END)   -> regs_2 (u32,   33)
+//       f0..f31 (32) + fcsr
+//   [FP_D_REGS_BASE, FP_D_REGS_END)   -> regs_3 (u64,   32)
+//       f0..f31 (32)
+//   [FP_D_FCSR_INDEX]                 -> regs_4 (u32)
+//       D-extension fcsr
+//   [FP_Q_REGS_BASE, FP_Q_REGS_END)   -> regs_5 (u64,   64)
+//       f0..f63 (64)
+//   [FP_Q_FCSR_INDEX]                 -> regs_6 (u32)
+//       Q-extension fcsr
+// Number of integer/core registers exposed as `usize` (`regs_1`).
+// 32 GPRs + sepc + sstatus + hstatus.
+const CORE_REGS_LEN: usize = 35;
+const CORE_REGS_BASE: usize = 0;
+const CORE_REGS_END: usize = CORE_REGS_BASE + CORE_REGS_LEN; // 35
+
+// `regs_2`: FFpuContext == 32 x u32 `f` + 1 x u32 `fcsr`.
+const FP_F_REGS_LEN: usize = 33;
+const FP_F_REGS_BASE: usize = CORE_REGS_END; // 35
+const FP_F_REGS_END: usize = FP_F_REGS_BASE + FP_F_REGS_LEN; // 68
+
+// `regs_3`: DFpuContext's `f: [u64; 32]`.
+const FP_D_REGS_LEN: usize = 32;
+const FP_D_REGS_BASE: usize = FP_F_REGS_END; // 68
+const FP_D_REGS_END: usize = FP_D_REGS_BASE + FP_D_REGS_LEN; // 100
+
+// `regs_4`: DFpuContext's `fcsr: u32` (split out by struct padding).
+const FP_D_FCSR_INDEX: usize = FP_D_REGS_END; // 100
+
+// `regs_5`: QFpuContext's `f: [u64; 64]`.
+const FP_Q_REGS_LEN: usize = 64;
+const FP_Q_REGS_BASE: usize = FP_D_FCSR_INDEX + 1; // 101
+const FP_Q_REGS_END: usize = FP_Q_REGS_BASE + FP_Q_REGS_LEN; // 165
+
+// `regs_6`: QFpuContext's `fcsr: u32` (split out by struct padding).
+const FP_Q_FCSR_INDEX: usize = FP_Q_REGS_END; // 165
+
+const _: () = {
+    // The union's two views must describe exactly the same bytes.
+    assert!(
+        size_of::<VcpuContextSlice>() == size_of::<VcpuContextReg>(),
+        "VcpuContextSlice and VcpuContextReg must have the same size",
+    );
+    assert!(
+        align_of::<VcpuContextSlice>() == align_of::<VcpuContextReg>(),
+        "VcpuContextSlice and VcpuContextReg must have the same alignment",
+    );
+};
+
 /// The Context of Vcpu, include some regs.
 #[repr(C)]
 pub union VcpuContext {
@@ -82,33 +143,38 @@ impl Default for VcpuContext {
 }
 
 impl VcpuContext {
-    /// Get reg by index
+    /// Get reg by logical index.
+    ///
+    /// The index layout is described by the `*_BASE` / `*_LEN` constants
+    /// above; each sub-array is indexed by `index - base`.
     // SAFETY: Access to union members is safe.
     pub fn get_reg(&self, index: usize) -> Result<usize> {
         unsafe {
             match index {
-                0..35 => Ok(self.slice.regs_1[index]),
-                35..68 => Ok(self.slice.regs_2[index] as usize),
-                68..100 => Ok(self.slice.regs_3[index] as usize),
-                100 => Ok(self.slice.regs_4 as usize),
-                101..164 => Ok(self.slice.regs_5[index] as usize),
-                164 => Ok(self.slice.regs_6 as usize),
-                _ => Err(Error::NotFound)
+                CORE_REGS_BASE..CORE_REGS_END => Ok(self.slice.regs_1[index - CORE_REGS_BASE]),
+                FP_F_REGS_BASE..FP_F_REGS_END => Ok(self.slice.regs_2[index - FP_F_REGS_BASE] as usize),
+                FP_D_REGS_BASE..FP_D_REGS_END => Ok(self.slice.regs_3[index - FP_D_REGS_BASE] as usize),
+                FP_D_FCSR_INDEX => Ok(self.slice.regs_4 as usize),
+                FP_Q_REGS_BASE..FP_Q_REGS_END => Ok(self.slice.regs_5[index - FP_Q_REGS_BASE] as usize),
+                FP_Q_FCSR_INDEX => Ok(self.slice.regs_6 as usize),
+                _ => Err(Error::NotFound),
             }
         }
     }
 
-    /// Set reg by index
+    /// Set reg by logical index.
+    ///
+    /// See [`Self::get_reg`] for the index layout.
     // SAFETY: Access to union members is safe.
     pub fn set_reg(&mut self, index: usize, value: usize) -> Result<()> {
         unsafe {
             match index {
-                0..35 => self.slice.regs_1[index] = value,
-                35..68 => self.slice.regs_2[index] = value as u32,
-                68..100 => self.slice.regs_3[index] = value as u64,
-                100 => self.slice.regs_4 = value as u32,
-                101..164 => self.slice.regs_5[index] = value as u64,
-                164 => self.slice.regs_6 = value as u32,
+                CORE_REGS_BASE..CORE_REGS_END => self.slice.regs_1[index - CORE_REGS_BASE] = value,
+                FP_F_REGS_BASE..FP_F_REGS_END => self.slice.regs_2[index - FP_F_REGS_BASE] = value as u32,
+                FP_D_REGS_BASE..FP_D_REGS_END => self.slice.regs_3[index - FP_D_REGS_BASE] = value as u64,
+                FP_D_FCSR_INDEX => self.slice.regs_4 = value as u32,
+                FP_Q_REGS_BASE..FP_Q_REGS_END => self.slice.regs_5[index - FP_Q_REGS_BASE] = value as u64,
+                FP_Q_FCSR_INDEX => self.slice.regs_6 = value as u32,
                 _ => return Err(Error::NotFound),
             }
         }

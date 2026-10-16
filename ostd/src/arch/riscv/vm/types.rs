@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 pub(super) const HGATP_MODE_SHIFT:usize = 60;
 pub(super) const HGATP_MODE_48:usize = 0x9000000000000000;
 pub(super) const HGATP_MODE_LEVEL_48:usize = 0x9;

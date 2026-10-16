@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::arch::vm::vcpu::VcpuArchInner;
 use crate::prelude::*;
 use crate::arch::vm::sbi::state_reg_count;

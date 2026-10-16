@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{InsnFunc, KvmInsnReturn};
 
 const INSN_MASK_WFI: usize = 0xffffffff;
@@ -11,5 +13,5 @@ pub(super) const WFI: InsnFunc = InsnFunc {
 
 fn wfi_insn(_insn: usize) -> KvmInsnReturn {
     crate::task::Task::yield_now();
-    KvmInsnReturn::KvmInsnContinueNextSepc
+    KvmInsnReturn::ContinueNextSepc
 }

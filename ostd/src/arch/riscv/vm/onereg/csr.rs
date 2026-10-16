@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::arch::vm::vcpu::VcpuArchInner;
 use super::{KVM_REG_ARCH_MASK, KVM_REG_SIZE_MASK, KVM_REG_RISCV_SUBTYPE_SHIFT, KVM_REG_RISCV_SUBTYPE_MASK, KVM_REG_RISCV, KVM_REG_SIZE_U64};
 use super::KVM_REG_RISCV_CSR;
@@ -30,6 +32,18 @@ struct KvmVcpuCsrReg {
 struct KvmVcpuCsrSlice {
     slice: [usize; 11],
 }
+
+const _: () = {
+    // The union's two views must describe exactly the same bytes.
+    assert!(
+        size_of::<KvmVcpuCsrReg>() == size_of::<KvmVcpuCsrSlice>(),
+        "KvmVcpuCsrReg and KvmVcpuCsrSlice must have the same size",
+    );
+    assert!(
+        align_of::<KvmVcpuCsrReg>() == align_of::<KvmVcpuCsrSlice>(),
+        "KvmVcpuCsrReg and KvmVcpuCsrSlice must have the same alignment",
+    );
+};
 
 #[repr(C)]
 pub(in crate::arch::vm) union KvmVcpuCsr {

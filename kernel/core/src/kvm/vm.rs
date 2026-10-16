@@ -1,11 +1,13 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::{
-    ioctl::*,
+    ioctl::{UserMemoryRegion, KVM_MEM_READONLY},
     vcpu::Vcpu,
     vm_memory::VmMemory,
 };
-use crate::{prelude::*};
+use crate::prelude::*;
 use crate::vm::vmar::{PageFaultInfo, Vmar};
-use super::arch::vm::*;
+use super::arch::vm::VmArch;
 
 use ostd::{
     mm::{CachePolicy, PageFlags, PageProperty, vm_space::VmQueriedItem},
@@ -14,7 +16,7 @@ use ostd::{
 };
 
 pub struct Vm {
-    pub id: u32,
+    id: u32,
     memory: VmMemory,
     vcpus: Mutex<BTreeMap<u32, Arc<Vcpu>>>,
     arch: VmArch,
@@ -36,6 +38,10 @@ impl Vm {
 
     pub fn memory(&self) -> &VmMemory {
         &self.memory
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
     }
 
     pub fn create_vcpu(self: &Arc<Self>, vcpu_id: u32) -> Result<Arc<Vcpu>> {
@@ -61,7 +67,7 @@ impl Vm {
                 0,
                 0,
                 Vec::new(),
-                default_guest_mem_prop(false),
+                guest_mem_prop(),
             )?;
             return Ok(());
         }
@@ -81,7 +87,11 @@ impl Vm {
             userspace_addr += PAGE_SIZE;
         }
 
-        let prop = default_guest_mem_prop(region.flags & KVM_MEM_READONLY != 0);
+        let prop = if region.flags & KVM_MEM_READONLY != 0 {
+            readonly_guest_mem_prop()
+        } else {
+            guest_mem_prop()
+        };        
         self.memory()
             .set_region(region.slot, guest_start, memory_size, frames, prop)?;
 
@@ -95,13 +105,12 @@ impl Drop for Vm {
     }
 }
 
-fn default_guest_mem_prop(is_readonly: bool) -> PageProperty {
-    let guest_page_flags = if is_readonly {
-        PageFlags::RX
-    } else {
-        PageFlags::RWX
-    };
-    PageProperty::new_user(guest_page_flags, CachePolicy::Writeback)
+fn guest_mem_prop() -> PageProperty {
+    PageProperty::new_user(PageFlags::RWX, CachePolicy::Writeback)
+}
+
+fn readonly_guest_mem_prop() -> PageProperty {
+    PageProperty::new_user(PageFlags::RX, CachePolicy::Writeback)
 }
 
 fn validate_user_memory_region(

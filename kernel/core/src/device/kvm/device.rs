@@ -19,8 +19,7 @@ use crate::{
     prelude::*,
     process::signal::{PollHandle, Pollable},
     util::ioctl::RawIoctl,
-    kvm::vm::Vm,
-    kvm::ioctl::check_extension,
+    kvm::Vm,
     dispatch_ioctl,
 };
 
@@ -123,7 +122,7 @@ impl PerOpenFileOps for KvmDeviceFile {
                 Ok(vm_fd.into())
             }
             CheckExtension => {
-                Ok(check_extension(raw_ioctl))
+                Ok(crate::kvm::check_extension(raw_ioctl))
             }
             GetVcpuMmapSize => {
                 Ok(KVM_RUN_MMAP_SIZE as i32)

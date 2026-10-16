@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use super::vcpu::VcpuArchInner;
 use crate::prelude::*;
 use super::isa::KVM_RISCV_BASE_ISA_MASK;

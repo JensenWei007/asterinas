@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::{
     prelude::*,
     util::ioctl::{InData, InOutData, RawIoctl},
     ioc,
 };
 
+// Extension capability list.
 const KVM_CAP_MP_STATE: usize = 14;
 const KVM_CAP_IMMEDIATE_EXIT: usize = 136;
 
@@ -25,6 +28,13 @@ pub(super) struct RegList {
     // Here is a FLEX_ARRAY, but in rust we do not write it
 }
 
+/// The common `struct kvm_mp_state`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod)]
+pub(super) struct MpState {
+    mp_state: u32,
+}
+
 pub(in crate::kvm) fn check_arch_extension(raw_ioctl: RawIoctl) -> i32 {
     match raw_ioctl.arg() {
         KVM_CAP_MP_STATE
@@ -32,11 +42,4 @@ pub(in crate::kvm) fn check_arch_extension(raw_ioctl: RawIoctl) -> i32 {
 
         _ => 0,
     }
-}
-
-/// The common `struct kvm_mp_state`.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod)]
-pub(super) struct MpState {
-    mp_state: u32,
 }

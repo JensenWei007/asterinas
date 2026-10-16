@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 use crate::arch::cpu::extension::{IsaExtensions, has_extensions};
 
 pub(super) const KVM_RISCV_BASE_ISA_MASK: usize = 0x0000000003FFFFFF;
@@ -90,92 +92,112 @@ enum KvmRiscvIsaExtId {
     MAX,
 }
 
-static KVM_ISA_EXT_ARR: [IsaExtensions; KvmRiscvIsaExtId::MAX as usize] = [
-    // single
-    IsaExtensions::A,          // KVM_RISCV_ISA_EXT_A
-    IsaExtensions::C,          // KVM_RISCV_ISA_EXT_C
-    IsaExtensions::D,          // KVM_RISCV_ISA_EXT_D
-    IsaExtensions::F,          // KVM_RISCV_ISA_EXT_F
-    IsaExtensions::H,          // KVM_RISCV_ISA_EXT_H
-    IsaExtensions::I,          // KVM_RISCV_ISA_EXT_I
-    IsaExtensions::M,          // KVM_RISCV_ISA_EXT_M
-    IsaExtensions::V,          // KVM_RISCV_ISA_EXT_V
+impl KvmRiscvIsaExtId {
+    /// Map a KVM-specific ISA extension ID to the host's `IsaExtensions`.
+    ///
+    /// Keep this `match` as the single source of truth; do not add a
+    /// parallel array, as the two orderings will drift.
+    fn to_isa_ext(self) -> IsaExtensions {
+        match self {
+            KvmRiscvIsaExtId::A => IsaExtensions::A,
+            KvmRiscvIsaExtId::C => IsaExtensions::C,
+            KvmRiscvIsaExtId::D => IsaExtensions::D,
+            KvmRiscvIsaExtId::F => IsaExtensions::F,
+            KvmRiscvIsaExtId::H => IsaExtensions::H,
+            KvmRiscvIsaExtId::I => IsaExtensions::I,
+            KvmRiscvIsaExtId::M => IsaExtensions::M,
+            KvmRiscvIsaExtId::SVPBMT => IsaExtensions::SVPBMT,
+            KvmRiscvIsaExtId::SSTC => IsaExtensions::SSTC,
+            KvmRiscvIsaExtId::SVINVAL => IsaExtensions::SVINVAL,
+            KvmRiscvIsaExtId::ZIHINTPAUSE => IsaExtensions::ZIHINTPAUSE,
+            KvmRiscvIsaExtId::ZICBOM => IsaExtensions::ZICBOM,
+            KvmRiscvIsaExtId::ZICBOZ => IsaExtensions::ZICBOZ,
+            KvmRiscvIsaExtId::ZBB => IsaExtensions::ZBB,
+            KvmRiscvIsaExtId::SSAIA => IsaExtensions::SSAIA,
+            KvmRiscvIsaExtId::V => IsaExtensions::V,
+            KvmRiscvIsaExtId::SVNAPOT => IsaExtensions::SVNAPOT,
+            KvmRiscvIsaExtId::ZBA => IsaExtensions::ZBA,
+            KvmRiscvIsaExtId::ZBS => IsaExtensions::ZBS,
+            KvmRiscvIsaExtId::ZICNTR => IsaExtensions::ZICNTR,
+            KvmRiscvIsaExtId::ZICSR => IsaExtensions::ZICSR,
+            KvmRiscvIsaExtId::ZIFENCEI => IsaExtensions::ZIFENCEI,
+            KvmRiscvIsaExtId::ZIHPM => IsaExtensions::ZIHPM,
+            KvmRiscvIsaExtId::SMSTATEEN => IsaExtensions::SMSTATEEN,
+            KvmRiscvIsaExtId::ZICOND => IsaExtensions::ZICOND,
+            KvmRiscvIsaExtId::ZBC => IsaExtensions::ZBC,
+            KvmRiscvIsaExtId::ZBKB => IsaExtensions::ZBKB,
+            KvmRiscvIsaExtId::ZBKC => IsaExtensions::ZBKC,
+            KvmRiscvIsaExtId::ZBKX => IsaExtensions::ZBKX,
+            KvmRiscvIsaExtId::ZKND => IsaExtensions::ZKND,
+            KvmRiscvIsaExtId::ZKNE => IsaExtensions::ZKNE,
+            KvmRiscvIsaExtId::ZKNH => IsaExtensions::ZKNH,
+            KvmRiscvIsaExtId::ZKR => IsaExtensions::ZKR,
+            KvmRiscvIsaExtId::ZKSED => IsaExtensions::ZKSED,
+            KvmRiscvIsaExtId::ZKSH => IsaExtensions::ZKSH,
+            KvmRiscvIsaExtId::ZKT => IsaExtensions::ZKT,
+            KvmRiscvIsaExtId::ZVBB => IsaExtensions::ZVBB,
+            KvmRiscvIsaExtId::ZVBC => IsaExtensions::ZVBC,
+            KvmRiscvIsaExtId::ZVKB => IsaExtensions::ZVKB,
+            KvmRiscvIsaExtId::ZVKG => IsaExtensions::ZVKG,
+            KvmRiscvIsaExtId::ZVKNED => IsaExtensions::ZVKNED,
+            KvmRiscvIsaExtId::ZVKNHA => IsaExtensions::ZVKNHA,
+            KvmRiscvIsaExtId::ZVKNHB => IsaExtensions::ZVKNHB,
+            KvmRiscvIsaExtId::ZVKSED => IsaExtensions::ZVKSED,
+            KvmRiscvIsaExtId::ZVKSH => IsaExtensions::ZVKSH,
+            KvmRiscvIsaExtId::ZVKT => IsaExtensions::ZVKT,
+            KvmRiscvIsaExtId::ZFH => IsaExtensions::ZFH,
+            KvmRiscvIsaExtId::ZFHMIN => IsaExtensions::ZFHMIN,
+            KvmRiscvIsaExtId::ZIHINTNTL => IsaExtensions::ZIHINTNTL,
+            KvmRiscvIsaExtId::ZVFH => IsaExtensions::ZVFH,
+            KvmRiscvIsaExtId::ZVFHMIN => IsaExtensions::ZVFHMIN,
+            KvmRiscvIsaExtId::ZFA => IsaExtensions::ZFA,
+            KvmRiscvIsaExtId::ZTSO => IsaExtensions::ZTSO,
+            KvmRiscvIsaExtId::ZACAS => IsaExtensions::ZACAS,
+            KvmRiscvIsaExtId::SSCOFPMF => IsaExtensions::SSCOFPMF,
+            KvmRiscvIsaExtId::ZIMOP => IsaExtensions::ZIMOP,
+            KvmRiscvIsaExtId::ZCA => IsaExtensions::ZCA,
+            KvmRiscvIsaExtId::ZCB => IsaExtensions::ZCB,
+            KvmRiscvIsaExtId::ZCD => IsaExtensions::ZCD,
+            KvmRiscvIsaExtId::ZCF => IsaExtensions::ZCF,
+            KvmRiscvIsaExtId::ZCMOP => IsaExtensions::ZCMOP,
+            KvmRiscvIsaExtId::ZAWRS => IsaExtensions::ZAWRS,
+            KvmRiscvIsaExtId::SMNPM => IsaExtensions::SMNPM,
+            KvmRiscvIsaExtId::SSNPM => IsaExtensions::SSNPM,
+            KvmRiscvIsaExtId::SVADE => IsaExtensions::SVADE,
+            KvmRiscvIsaExtId::SVADU => IsaExtensions::SVADU,
+            KvmRiscvIsaExtId::SVVPTC => IsaExtensions::SVVPTC,
+            KvmRiscvIsaExtId::ZABHA => IsaExtensions::ZABHA,
+            KvmRiscvIsaExtId::ZICCRSE => IsaExtensions::ZICCRSE,
+            KvmRiscvIsaExtId::ZAAMO => IsaExtensions::ZAAMO,
+            KvmRiscvIsaExtId::ZALRSC => IsaExtensions::ZALRSC,
+            KvmRiscvIsaExtId::ZICBOP => IsaExtensions::ZICBOP,
+            KvmRiscvIsaExtId::ZFBFMIN => IsaExtensions::ZFBFMIN,
+            KvmRiscvIsaExtId::ZVFBFMIN => IsaExtensions::ZVFBFMIN,
+            KvmRiscvIsaExtId::ZVFBFWMA => IsaExtensions::ZVFBFWMA,
+            KvmRiscvIsaExtId::ZCLSD => IsaExtensions::ZCLSD,
+            KvmRiscvIsaExtId::ZILSD => IsaExtensions::ZILSD,
+            KvmRiscvIsaExtId::ZALASR => IsaExtensions::ZALASR,
+            KvmRiscvIsaExtId::MAX => unreachable!("MAX is not a real ISA extension"),
+        }
+    }
 
-    // multi
-    IsaExtensions::SMNPM,      // KVM_RISCV_ISA_EXT_SMNPM
-    IsaExtensions::SMSTATEEN,  // KVM_RISCV_ISA_EXT_SMSTATEEN
-    IsaExtensions::SSAIA,      // KVM_RISCV_ISA_EXT_SSAIA
-    IsaExtensions::SSCOFPMF,   // KVM_RISCV_ISA_EXT_SSCOFPMF
-    IsaExtensions::SSNPM,      // KVM_RISCV_ISA_EXT_SSNPM
-    IsaExtensions::SSTC,       // KVM_RISCV_ISA_EXT_SSTC
-    IsaExtensions::SVADE,      // KVM_RISCV_ISA_EXT_SVADE
-    IsaExtensions::SVADU,      // KVM_RISCV_ISA_EXT_SVADU
-    IsaExtensions::SVINVAL,    // KVM_RISCV_ISA_EXT_SVINVAL
-    IsaExtensions::SVNAPOT,    // KVM_RISCV_ISA_EXT_SVNAPOT
-    IsaExtensions::SVPBMT,     // KVM_RISCV_ISA_EXT_SVPBMT
-    IsaExtensions::SVVPTC,     // KVM_RISCV_ISA_EXT_SVVPTC
-    IsaExtensions::ZAAMO,      // KVM_RISCV_ISA_EXT_ZAAMO
-    IsaExtensions::ZABHA,      // KVM_RISCV_ISA_EXT_ZABHA
-    IsaExtensions::ZACAS,      // KVM_RISCV_ISA_EXT_ZACAS
-    IsaExtensions::ZALASR,     // KVM_RISCV_ISA_EXT_ZALASR
-    IsaExtensions::ZALRSC,     // KVM_RISCV_ISA_EXT_ZALRSC
-    IsaExtensions::ZAWRS,      // KVM_RISCV_ISA_EXT_ZAWRS
-    IsaExtensions::ZBA,        // KVM_RISCV_ISA_EXT_ZBA
-    IsaExtensions::ZBB,        // KVM_RISCV_ISA_EXT_ZBB
-    IsaExtensions::ZBC,        // KVM_RISCV_ISA_EXT_ZBC
-    IsaExtensions::ZBKB,       // KVM_RISCV_ISA_EXT_ZBKB
-    IsaExtensions::ZBKC,       // KVM_RISCV_ISA_EXT_ZBKC
-    IsaExtensions::ZBKX,       // KVM_RISCV_ISA_EXT_ZBKX
-    IsaExtensions::ZBS,        // KVM_RISCV_ISA_EXT_ZBS
-    IsaExtensions::ZCA,        // KVM_RISCV_ISA_EXT_ZCA
-    IsaExtensions::ZCB,        // KVM_RISCV_ISA_EXT_ZCB
-    IsaExtensions::ZCD,        // KVM_RISCV_ISA_EXT_ZCD
-    IsaExtensions::ZCF,        // KVM_RISCV_ISA_EXT_ZCF
-    IsaExtensions::ZCLSD,      // KVM_RISCV_ISA_EXT_ZCLSD
-    IsaExtensions::ZCMOP,      // KVM_RISCV_ISA_EXT_ZCMOP
-    IsaExtensions::ZFA,        // KVM_RISCV_ISA_EXT_ZFA
-    IsaExtensions::ZFBFMIN,    // KVM_RISCV_ISA_EXT_ZFBFMIN
-    IsaExtensions::ZFH,        // KVM_RISCV_ISA_EXT_ZFH
-    IsaExtensions::ZFHMIN,     // KVM_RISCV_ISA_EXT_ZFHMIN
-    IsaExtensions::ZICBOM,     // KVM_RISCV_ISA_EXT_ZICBOM
-    IsaExtensions::ZICBOP,     // KVM_RISCV_ISA_EXT_ZICBOP
-    IsaExtensions::ZICBOZ,     // KVM_RISCV_ISA_EXT_ZICBOZ
-    IsaExtensions::ZICCRSE,    // KVM_RISCV_ISA_EXT_ZICCRSE
-    IsaExtensions::ZICNTR,     // KVM_RISCV_ISA_EXT_ZICNTR
-    IsaExtensions::ZICOND,     // KVM_RISCV_ISA_EXT_ZICOND
-    IsaExtensions::ZICSR,      // KVM_RISCV_ISA_EXT_ZICSR
-    IsaExtensions::ZIFENCEI,   // KVM_RISCV_ISA_EXT_ZIFENCEI
-    IsaExtensions::ZIHINTNTL,  // KVM_RISCV_ISA_EXT_ZIHINTNTL
-    IsaExtensions::ZIHINTPAUSE,// KVM_RISCV_ISA_EXT_ZIHINTPAUSE
-    IsaExtensions::ZIHPM,      // KVM_RISCV_ISA_EXT_ZIHPM
-    IsaExtensions::ZILSD,      // KVM_RISCV_ISA_EXT_ZILSD
-    IsaExtensions::ZIMOP,      // KVM_RISCV_ISA_EXT_ZIMOP
-    IsaExtensions::ZKND,       // KVM_RISCV_ISA_EXT_ZKND
-    IsaExtensions::ZKNE,       // KVM_RISCV_ISA_EXT_ZKNE
-    IsaExtensions::ZKNH,       // KVM_RISCV_ISA_EXT_ZKNH
-    IsaExtensions::ZKR,        // KVM_RISCV_ISA_EXT_ZKR
-    IsaExtensions::ZKSED,      // KVM_RISCV_ISA_EXT_ZKSED
-    IsaExtensions::ZKSH,       // KVM_RISCV_ISA_EXT_ZKSH
-    IsaExtensions::ZKT,        // KVM_RISCV_ISA_EXT_ZKT
-    IsaExtensions::ZTSO,       // KVM_RISCV_ISA_EXT_ZTSO
-    IsaExtensions::ZVBB,       // KVM_RISCV_ISA_EXT_ZVBB
-    IsaExtensions::ZVBC,       // KVM_RISCV_ISA_EXT_ZVBC
-    IsaExtensions::ZVFBFMIN,   // KVM_RISCV_ISA_EXT_ZVFBFMIN
-    IsaExtensions::ZVFBFWMA,   // KVM_RISCV_ISA_EXT_ZVFBFWMA
-    IsaExtensions::ZVFH,       // KVM_RISCV_ISA_EXT_ZVFH
-    IsaExtensions::ZVFHMIN,    // KVM_RISCV_ISA_EXT_ZVFHMIN
-    IsaExtensions::ZVKB,       // KVM_RISCV_ISA_EXT_ZVKB
-    IsaExtensions::ZVKG,       // KVM_RISCV_ISA_EXT_ZVKG
-    IsaExtensions::ZVKNED,     // KVM_RISCV_ISA_EXT_ZVKNED
-    IsaExtensions::ZVKNHA,     // KVM_RISCV_ISA_EXT_ZVKNHA
-    IsaExtensions::ZVKNHB,     // KVM_RISCV_ISA_EXT_ZVKNHB
-    IsaExtensions::ZVKSED,     // KVM_RISCV_ISA_EXT_ZVKSED
-    IsaExtensions::ZVKSH,      // KVM_RISCV_ISA_EXT_ZVKSH
-    IsaExtensions::ZVKT,       // KVM_RISCV_ISA_EXT_ZVKT
-];
+    /// Convert a raw KVM ISA extension ID into the enum variant.
+    ///
+    /// Returns `None` for `MAX` and any out-of-range value.
+    fn from_raw(raw: u32) -> Option<Self> {
+        if raw >= Self::MAX as u32 {
+            return None;
+        }
+        // SAFETY: `Self` is `#[repr(u32)]` and contiguous from 0 to MAX-1.
+        Some(unsafe { core::mem::transmute::<u32, Self>(raw) })
+    }
 
-fn kvm_riscv_isa_check_host(kvm_ext: usize) -> Result<IsaExtensions, i32> {
-    let mapped = KVM_ISA_EXT_ARR[kvm_ext];
+    /// Number of real (non-`MAX`) variants.
+    const COUNT: u32 = Self::MAX as u32;
+}
+
+fn kvm_riscv_isa_check_host(kvm_ext: KvmRiscvIsaExtId) -> Result<IsaExtensions, i32> {
+    let mapped = kvm_ext.to_isa_ext();
 
     let host_ext = match mapped {
         IsaExtensions::SMNPM => IsaExtensions::SSNPM,
@@ -209,10 +231,14 @@ fn set_bit(isa: &mut [u64; 2], bit: usize) {
 }
 
 pub(super) fn kvm_riscv_vcpu_setup_isa(isa: &mut [u64; 2]) {
-    for i in 0..KvmRiscvIsaExtId::MAX as usize {
-        if let Ok(ext) = kvm_riscv_isa_check_host(i) {
-            if kvm_riscv_isa_enable_allowed(ext) {
-                set_bit(isa, i);
+    for raw in 0..KvmRiscvIsaExtId::COUNT {
+        let Some(ext) = KvmRiscvIsaExtId::from_raw(raw) else {
+            continue;
+        };
+
+        if let Ok(isa_ext) = kvm_riscv_isa_check_host(ext) {
+            if kvm_riscv_isa_enable_allowed(isa_ext) {
+                set_bit(isa, isa_ext.bits().trailing_zeros() as usize);
             }
         }
     }
