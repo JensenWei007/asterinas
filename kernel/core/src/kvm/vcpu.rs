@@ -59,6 +59,6 @@ impl Vcpu {
 
 impl Drop for Vcpu {
     fn drop(&mut self) {
-        debug!("hypervisor: release VCPU {}.", self.id);
+        debug!("kvm: release VCPU {}.", self.id);
     }
 }

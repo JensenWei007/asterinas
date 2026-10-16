@@ -47,7 +47,7 @@ enum KvmRiscvSbiExtStatus {
 
 /// SBI extension IDs specific to KVM. This is not the same as the SBI
 /// extension IDs defined by the RISC-V SBI specification.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum KvmRiscvSbiExtId {
 	V01,
 	Time,
@@ -98,17 +98,12 @@ impl VcpuSbiContext {
             } else {
                 KvmRiscvSbiExtStatus::Enabled
             };
-            if let Some(func) = ext.init {
+            if let Some(func) = ext.init_fn {
                 func(self)?;
             }
         }
         Ok(())
     }
-}
-
-struct KvmRiscvSbiExtensionEntry {
-	ext_idx: KvmRiscvSbiExtId,
-	ext: &'static KvmVcpuSbiExtension,
 }
 
 /// The return value of SbiHandler
@@ -156,24 +151,24 @@ struct KvmVcpuSbiExtension {
 	/// SBI extension handler. It can be defined for a given extension or group of
 	/// extension. But it should always return linux error codes rather than SBI
 	/// specific error codes.
-	handler: &'static SbiHandlerFunction,
+	handler_fn: &'static SbiHandlerFunction,
 
     /// Extension specific probe function
-    probe: Option<&'static SbiProbeFunction>,
+    probe_fn: Option<&'static SbiProbeFunction>,
 
 	/// Init/deinit function called once during VCPU init/destroy. These
 	/// might be use if the SBI extensions need to allocate or do specific
 	/// init time only configuration.
-	init: Option<&'static SbiInitFunction>,
-    deinit: Option<&'static SbiDeinitFunction>,
+	init_fn: Option<&'static SbiInitFunction>,
+    deinit_fn: Option<&'static SbiDeinitFunction>,
 
-    reset: Option<&'static SbiResetFunction>,
+    reset_fn: Option<&'static SbiResetFunction>,
 
     state_reg_subtype: usize,
-    get_state_reg_count: Option<&'static SbiGetStateRegCountFunction>,
-	get_state_reg_id: Option<&'static SbiGetStateRegIdFunction>,
-    get_state_reg: Option<&'static SbiGetStateRegFunction>,
-    set_state_reg: Option<&'static SbiSetStateRegFunction>,
+    get_state_reg_count_fn: Option<&'static SbiGetStateRegCountFunction>,
+	get_state_reg_id_fn: Option<&'static SbiGetStateRegIdFunction>,
+    get_state_reg_fn: Option<&'static SbiGetStateRegFunction>,
+    set_state_reg_fn: Option<&'static SbiSetStateRegFunction>,
 }
 
 impl KvmVcpuSbiExtension {
@@ -194,22 +189,22 @@ impl KvmVcpuSbiExtension {
     pub(super) const fn new(
         extid_start: usize,
         extid_end: usize,
-        handler: &'static SbiHandlerFunction,
+        handler_fn: &'static SbiHandlerFunction,
     ) -> Self {
         Self {
             extid_start,
             extid_end,
             default_disabled: false,
-            handler,
-            probe: None,
-            init: None,
-            deinit: None,
-            reset: None,
+            handler_fn,
+            probe_fn: None,
+            init_fn: None,
+            deinit_fn: None,
+            reset_fn: None,
             state_reg_subtype: 0,
-            get_state_reg_count: None,
-            get_state_reg_id: None,
-            get_state_reg: None,
-            set_state_reg: None,
+            get_state_reg_count_fn: None,
+            get_state_reg_id_fn: None,
+            get_state_reg_fn: None,
+            set_state_reg_fn: None,
         }
     }
 }
@@ -238,16 +233,37 @@ const SBI_EXT_TABLE: [(KvmRiscvSbiExtId, &KvmVcpuSbiExtension); SBI_EXT_TABLE_SI
     (KvmRiscvSbiExtId::Vendor,       &VCPU_SBI_EXT_VENDOR),
 ];
 
-fn vcpu_get_sbi_ext_idx(idx: usize) -> Result<usize> {
-    SBI_EXT_TABLE
-        .iter()
-        .position(|(_, ext)| (ext.extid_start..=ext.extid_end).contains(&idx))
-        .ok_or(Error::NotFound)
+fn vcpu_sbi_find_ext(
+    scontext: &VcpuSbiContext,
+    idx: usize,
+) -> Result<&'static KvmVcpuSbiExtension> {
+    for (id, ext) in SBI_EXT_TABLE.iter() {
+        if !(ext.extid_start..=ext.extid_end).contains(&idx) {
+            continue;
+        }
+
+        match *id {
+            // Individual control of the enabled status per vCPU (such as for basic extensions) is 
+            // not supported; therefore, access is granted automatically as long as the IDs match.
+            x if x >= KvmRiscvSbiExtId::Max => return Ok(ext),
+
+            // This extension supports control on a per-vCPU basis; its application is determined 
+            // by whether it has been explicitly enabled for the current vCPU.
+            other => {
+                if scontext.ext_status[other as usize] == KvmRiscvSbiExtStatus::Enabled {
+                    return Ok(ext);
+                }
+                return Err(Error::NotFound);
+            }
+        }
+    }
+
+    Err(Error::NotFound)
 }
 
 pub(super) fn reset_sbi(inner: &mut VcpuArchInner) -> Result<()> {
     for &(ext_id, ext) in SBI_EXT_TABLE.iter() {
-        if let Some(func) = ext.reset {
+        if let Some(func) = ext.reset_fn {
             if inner.sbi_context.ext_status[ext_id as usize] != KvmRiscvSbiExtStatus::Enabled {
                 func(&mut inner.sbi_context)?;
             }
@@ -258,10 +274,9 @@ pub(super) fn reset_sbi(inner: &mut VcpuArchInner) -> Result<()> {
 
 /// Handle vm's sbi_call
 pub fn handle_sbi_call(inner: &mut VcpuArchInner) -> Result<usize> {
-    let index = vcpu_get_sbi_ext_idx(inner.guest_context.get_a7());
-    if let Ok(index) = index {
-        let (_, ext) = &SBI_EXT_TABLE[index];
-        let func = ext.handler;
+    let ext = vcpu_sbi_find_ext(&inner.sbi_context,inner.guest_context.get_a7());
+    if let Ok(ext) = ext {
+        let func = ext.handler_fn;
 
         let rt = func(inner)?;
 
@@ -283,17 +298,17 @@ pub(super) fn state_reg_count(inner: &VcpuArchInner, mut vec: Option<&mut Vec<us
     let mut n = 0;
 
     for &(ext_id, ext) in SBI_EXT_TABLE.iter() {
-        if ext.get_state_reg_count.is_none()
+        if ext.get_state_reg_count_fn.is_none()
             || inner.sbi_context.ext_status[ext_id as usize] != KvmRiscvSbiExtStatus::Enabled {
             continue;
         }
 
-        if let Some(func) = ext.get_state_reg_count {
+        if let Some(func) = ext.get_state_reg_count_fn {
             let state_reg_count = func();
 
             for j in 0..state_reg_count {
                 if let Some(vec) = vec.as_deref_mut() {
-                    if let Some(func) = ext.get_state_reg_id {
+                    if let Some(func) = ext.get_state_reg_id_fn {
                         vec.push(func(j)?);
                     } else {
                         let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_SBI_STATE

@@ -7,7 +7,7 @@ use crate::prelude::*;
 const SBI_EXT_PMU: usize = 0x504D55;
 
 pub(super) const VCPU_SBI_EXT_PMU: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    probe: Some(&sbi_ext_pmu_probe),
+    probe_fn: Some(&sbi_ext_pmu_probe),
     ..KvmVcpuSbiExtension::new(SBI_EXT_PMU, SBI_EXT_PMU, &sbi_ext_pmu_handler)
 };
 

@@ -27,10 +27,13 @@ struct KvmVcpuCsrReg {
 	senvcfg: usize,
 }
 
+/// Number of CSR slots in the union's slice view.
+const CSR_SLICE_LEN: usize = 11;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod)]
 struct KvmVcpuCsrSlice {
-    slice: [usize; 11],
+    slice: [usize; CSR_SLICE_LEN],
 }
 
 const _: () = {
@@ -59,7 +62,7 @@ impl Default for KvmVcpuCsr {
     fn default() -> Self {
         KvmVcpuCsr {
             slice: KvmVcpuCsrSlice {
-                slice: [0; 11],
+                slice: [0; CSR_SLICE_LEN],
             },
         }
     }
@@ -67,13 +70,20 @@ impl Default for KvmVcpuCsr {
 
 impl KvmVcpuCsr {
     // SAFETY: Access to union members is safe.
-    fn get_csr(&self, index: usize) -> Option<usize> {
-        unsafe { Some(self.slice.slice[index]) }
+    fn get_csr(&self, index: usize) -> Result<usize> {
+        if index >= CSR_SLICE_LEN {
+            return Err(Error::NotFound);
+        }
+        unsafe { Ok(self.slice.slice[index]) }
     }
 
     // SAFETY: Access to union members is safe.
-    fn set_csr(&mut self, index: usize, value: usize) {
+    fn set_csr(&mut self, index: usize, value: usize) -> Result<()> {
+        if index >= CSR_SLICE_LEN {
+            return Err(Error::NotFound);
+        }
         unsafe { self.slice.slice[index] = value };
+        Ok(())
     }
 
     // SAFETY: Access to union members is safe.
@@ -182,17 +192,17 @@ impl VcpuArchInner {
         let reg_subtype = KVM_REG_RISCV_SUBTYPE_MASK & reg_num;
         reg_num &= !(KVM_REG_RISCV_SUBTYPE_MASK);
         match reg_subtype {
-            KVM_REG_RISCV_CSR_GENERAL => Ok(self.get_general_csr(reg_num)),
+            KVM_REG_RISCV_CSR_GENERAL => self.get_general_csr(reg_num),
             KVM_REG_RISCV_CSR_AIA => todo!("OneReg: get_csr for SSAIA isa support is not impled!"),
             KVM_REG_RISCV_CSR_SMSTATEEN => todo!("OneReg: get_csr for SMSTATEEN isa support is not impled!"),
             _ => Err(Error::NotFound),
         }
     }
 
-    fn get_general_csr(&self, reg_num: usize) -> usize {
+    fn get_general_csr(&self, reg_num: usize) -> Result<usize> {
         match reg_num {
-            KvmVcpuCsr::SIP => ((self.guest_csr.get_hvip() >> VSIP_TO_HVIP_SHIFT) & VSIP_VALID_MASK) & IRQ_LOCAL_MASK,
-            _ => self.guest_csr.get_csr(reg_num).unwrap()
+            KvmVcpuCsr::SIP => Ok(((self.guest_csr.get_hvip() >> VSIP_TO_HVIP_SHIFT) & VSIP_VALID_MASK) & IRQ_LOCAL_MASK),
+            _ => self.guest_csr.get_csr(reg_num)
         }
     }
 
@@ -201,7 +211,7 @@ impl VcpuArchInner {
         let reg_subtype = KVM_REG_RISCV_SUBTYPE_MASK & reg_num;
         reg_num &= !(KVM_REG_RISCV_SUBTYPE_MASK);
         match reg_subtype {
-            KVM_REG_RISCV_CSR_GENERAL => self.set_general_csr(reg_num, reg_val),
+            KVM_REG_RISCV_CSR_GENERAL => self.set_general_csr(reg_num, reg_val)?,
             KVM_REG_RISCV_CSR_AIA => todo!("OneReg: set_csr for SSAIA isa support is not impled!"),
             KVM_REG_RISCV_CSR_SMSTATEEN => todo!("OneReg: set_csr for SSAIA isa support is not impled!"),
             _ => return Err(Error::NotFound),
@@ -209,14 +219,15 @@ impl VcpuArchInner {
         Ok(())
     }
 
-    fn set_general_csr(&mut self, reg_num: usize, reg_val: usize) {
+    fn set_general_csr(&mut self, reg_num: usize, reg_val: usize) -> Result<()> {
         match reg_num {
             KvmVcpuCsr::SIP => {
                 let reg_val = (reg_val & VSIP_VALID_MASK) << VSIP_TO_HVIP_SHIFT;
-                self.guest_csr.set_csr(reg_num, reg_val);
+                self.guest_csr.set_csr(reg_num, reg_val)?;
             }
-            _ => self.guest_csr.set_csr(reg_num, reg_val),
+            _ => self.guest_csr.set_csr(reg_num, reg_val)?,
         }
+        Ok(())
     }
 
     pub(super) fn copy_csr_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {

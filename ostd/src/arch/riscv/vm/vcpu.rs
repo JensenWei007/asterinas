@@ -4,7 +4,7 @@ use crate::prelude::*;
 use super::onereg::KvmVcpuCsr;
 use crate::arch::{cpu::extension::{IsaExtensions, has_extensions}, vm::context::VcpuContext};
 
-use crate::arch::vm::types::{KvmCpuTrap, KvmVcpuConfig, KVM_HEDELEG_DEFAULT, KVM_HIDELEG_DEFAULT, IRQ_VS_SOFT, HGATP_MODE_LEVEL_48, HGATP_PPN, HGATP_MODE_SHIFT};
+use crate::arch::vm::types::{KvmCpuTrap, KvmVcpuConfig, KVM_HEDELEG_DEFAULT, KVM_HIDELEG_DEFAULT, IRQ_VS_SOFT, IRQ_VS_EXT, HGATP_MODE_LEVEL_48, HGATP_PPN, HGATP_MODE_SHIFT};
 use crate::arch::vm::timer::VcpuTimer;
 use crate::arch::vm::sbi::{VcpuSbiContext, reset_sbi};
 use crate::arch::vm::isa::kvm_riscv_vcpu_setup_isa;
@@ -353,11 +353,11 @@ impl VcpuArchInner {
     /// please refer to the comments for `irqs_pending`.
     pub fn set_interrupt(&mut self, irq: u32) {
         if irq == u32::MAX {
-            self.irqs_pending |= 0x1<<10;
+            self.irqs_pending |= 0x1<<IRQ_VS_EXT;
         } else {
-            self.irqs_pending &= !(0x1<<10);
+            self.irqs_pending &= !(0x1<<IRQ_VS_EXT);
         }
-        self.irqs_pending_mask |= 0x1 <<10;
+        self.irqs_pending_mask |= 0x1 <<IRQ_VS_EXT;
     }
 }
 

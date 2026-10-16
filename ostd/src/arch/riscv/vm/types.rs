@@ -9,6 +9,7 @@ const IRQ_S_SOFT:usize =		1;
 pub(super) const IRQ_VS_SOFT:usize =		2;
 const IRQ_S_TIMER:usize =		5;
 const IRQ_S_EXT:usize =		9;
+pub(super)const IRQ_VS_EXT:usize = 10;
 const IRQ_PMU_OVF:usize =		13;
 pub(super) const IRQ_LOCAL_MASK:usize = 0x3FFF;
 

@@ -373,7 +373,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **修复。** 增加构造函数或"可选字段取默认值"的 helper（例如 `KvmVcpuSbiExtension::new(SBI_EXT_BASE, &sbi_ext_base_handler)`），对少数额外设置字段的扩展使用 struct update 语法。
 
-### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 188
+### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 188-已修复
 
 > ```diff
 > +    KvmRiscvSbiExtensionEntry {
@@ -388,7 +388,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与正确性章节第 247 行的评论共享同一修法**（`Wrong lookup key`）：两者都源于"一个扩展被标识两次"——应该用它自身携带的身份（`extid_start..=extid_end`）去查找，并让 `ext_status` 使用同一个槽位。
 
-### `ostd/src/arch/riscv/vm/timer.rs` line 55
+### `ostd/src/arch/riscv/vm/timer.rs` line 55-已修复
 
 > ```diff
 > +    pub(super) fn call_next_event(&self, next_cycle: usize) {
@@ -401,7 +401,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **修复。** 改名为 `next_event_fn`（以及 `handler_fn`、`csr_insn_fn`……），让每个位置都表明这里是在调用一个函数指针。
 
-### `ostd/src/arch/riscv/vm/vcpu.rs` line 354
+### `ostd/src/arch/riscv/vm/vcpu.rs` line 354-已修复
 
 > ```diff
 > +        if irq == u32::MAX {
@@ -416,7 +416,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **修复。** 在 `ostd/src/arch/riscv/vm/types.rs` 中 `IRQ_VS_SOFT` 旁边加上 `const IRQ_VS_EXT: usize = 10;`，并在该处使用 `1 << IRQ_VS_EXT`。
 
-### `test/initramfs/nix/initramfs.nix` line 17
+### `test/initramfs/nix/initramfs.nix` line 17-不用管
 
 > ```diff
 > +  qemu = builtins.path { path = ./../src/qemu-system-riscv64; };
@@ -430,7 +430,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 ## Correctness（正确性）
 
-### `kernel/core/src/device/kvm/vcpu_file.rs` line 64
+### `kernel/core/src/device/kvm/vcpu_file.rs` line 64-已修复
 
 > ```diff
 >             GetStatsFd => {
@@ -445,7 +445,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与安全性章节同一行的评论共享同一修法**（`Returns an unallocated file descriptor`）：只需一处修复——经 `CreateVm`/`CreateVcpu` 的路径安装真实的 fd，或者直接让 ioctl 以 `ENOTTY`/`ENOSYS` 失败；绝不要交回一个常量槽位号。
 
-### `kernel/core/src/kvm/arch/riscv/mmio.rs` line 201
+### `kernel/core/src/kvm/arch/riscv/mmio.rs` line 201-AI犯病了，让我把对的改错，改完跑不通了
 
 > ```diff
 >     /// Get the rs2 reg_val of RVC insn
@@ -460,7 +460,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与硬件章节同一行的评论共享同一修法**（`Wrong register number for compressed stores`）：同一处缺陷，同一行修复。
 
-### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 251
+### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 251-已修复
 
 > ```diff
 >         match trap.get_trap_type() {
@@ -477,7 +477,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与其他宿主 panic 类评论共享同一修法**（`kernel/core/src/kvm/arch/riscv/vcpu.rs` 第 110、223 行，`ostd/src/arch/riscv/vm/insn/csr.rs` 第 53 行，`ostd/src/arch/riscv/vm/timer.rs` 第 55 行）：这些路径都不得对 guest 或 VMM 选定的输入 panic——每一条都应转化为给 VMM 的 `Err(...)`/`errno`，或注入 guest 的异常。
 
-### `kernel/core/src/kvm/vm.rs` line 48
+### `kernel/core/src/kvm/vm.rs` line 48-已修复
 
 > ```diff
 >     pub fn create_vcpu(self: &Arc<Self>, vcpu_id: u32) -> Result<Arc<Vcpu>> {
@@ -516,7 +516,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与第 144 行的 `Null pointer dereference` 评论共享同一修法**（Security）：两个症状都是同一个 `(0, 0)` 哨兵值，因此一处改动——可失败的 `alloc_page`/`GStagePageTable::new`，经 `GuestPhysMemSpace::new` 传到 `VmMemory::new`——同时修复两者。
 
-### `ostd/src/arch/riscv/vm/insn/csr.rs` line 53
+### `ostd/src/arch/riscv/vm/insn/csr.rs` line 53-已修复
 
 > ```diff
 > fn csr_insn(_insn: usize) -> KvmInsnReturn {
@@ -530,7 +530,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与其他宿主 panic 类评论共享同一修法**（`ostd/src/arch/riscv/vm/timer.rs` 第 55 行，`kernel/core/src/kvm/arch/riscv/vcpu.rs` 第 110、223、251 行）：整条模拟路径只遵循一条规则——每个未实现的分支都要有确定的、不 panic 的出口。
 
-### `ostd/src/arch/riscv/vm/isa.rs` line 93
+### `ostd/src/arch/riscv/vm/isa.rs` line 93-已修复
 
 > ```diff
 > static KVM_ISA_EXT_ARR: [IsaExtensions; KvmRiscvIsaExtId::MAX as usize] = [
@@ -547,7 +547,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 
 **与可维护性章节同一行的 `dry` 评论共享同一修法**：重排序与"只保留一种有序表示"的重构是同一次改动。
 
-### `ostd/src/arch/riscv/vm/onereg/core.rs` line 60
+### `ostd/src/arch/riscv/vm/onereg/core.rs` line 60-已修复
 
 > ```diff
 >         match reg_num {
@@ -563,7 +563,7 @@ SBI 模拟，以及 one-reg/MMIO/timer/CSR 模拟）。
 KvmCore::MODE => Ok(((self.guest_context.get_sstatus() & SR_SPP) != 0) as usize),
 ```
 
-### `ostd/src/arch/riscv/vm/onereg/core.rs` line 76
+### `ostd/src/arch/riscv/vm/onereg/core.rs` line 76-已修复
 
 > ```diff
 >                 } else {
@@ -580,7 +580,7 @@ let sstatus = self.guest_context.get_sstatus();
 self.guest_context.set_sstatus(sstatus & !SR_SPP);
 ```
 
-### `ostd/src/arch/riscv/vm/onereg/csr.rs` line 181
+### `ostd/src/arch/riscv/vm/onereg/csr.rs` line 181-已修复
 
 > ```diff
 >     fn get_general_csr(&self, reg_num: usize) -> usize {
@@ -606,7 +606,7 @@ fn get_general_csr(&self, reg_num: usize) -> Result<usize> {
 
 **与同一对函数上的 `validate-at-boundaries` 评论共享同一修法**（Security，`ostd/src/arch/riscv/vm/onereg/csr.rs` 第 57 行）：一次校验同时覆盖两者——在 ioctl 边界（`Vcpu::get_onereg`/`set_onereg`）检查一次 `reg_num`，用 `Err(Error::NotFound)` 拒绝越界编号（Linux 返回 `EINVAL`），并让 `KvmVcpuCsr::get_csr`/`set_csr` 使用 `slice.get(index)`/返回错误而不是直接索引。
 
-### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 247
+### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 247-已修复
 
 > ```diff
 > fn vcpu_get_sbi_ext_idx(idx: usize) -> Result<usize> {

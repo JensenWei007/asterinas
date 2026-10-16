@@ -9,14 +9,14 @@ use crate::prelude::*;
 const SBI_EXT_FWFT: usize = 0x46574654;
 
 pub(super) const VCPU_SBI_EXT_FWFT: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    init: Some(&kvm_sbi_ext_fwft_init),
-    deinit: Some(&sbi_ext_fwft_deinit),
-    reset: Some(&kvm_sbi_ext_fwft_reset),
+    init_fn: Some(&kvm_sbi_ext_fwft_init),
+    deinit_fn: Some(&sbi_ext_fwft_deinit),
+    reset_fn: Some(&kvm_sbi_ext_fwft_reset),
     state_reg_subtype: KVM_REG_RISCV_SBI_FWFT,
-    get_state_reg_count: Some(&sbi_ext_fwft_get_state_reg_count),
-    get_state_reg_id: Some(&sbi_ext_fwft_get_state_reg_id),
-    get_state_reg: Some(&sbi_ext_fwft_get_state_reg),
-    set_state_reg: Some(&sbi_ext_fwft_set_state_reg),
+    get_state_reg_count_fn: Some(&sbi_ext_fwft_get_state_reg_count),
+    get_state_reg_id_fn: Some(&sbi_ext_fwft_get_state_reg_id),
+    get_state_reg_fn: Some(&sbi_ext_fwft_get_state_reg),
+    set_state_reg_fn: Some(&sbi_ext_fwft_set_state_reg),
     ..KvmVcpuSbiExtension::new(SBI_EXT_FWFT, SBI_EXT_FWFT, &sbi_ext_fwft_handler)
 };
 
@@ -26,20 +26,20 @@ const SBI_FWFT_FEATURES: [KvmSbiFwftFeature; SBI_FWFT_FEATURES_SIZE] = [
     KvmSbiFwftFeature {
         id: SbiFwftFeature::SbiFwftMisalignedExcDeleg,
         first_reg_num: 0,
-        supported: &kvm_sbi_fwft_misaligned_delegation_supported,
-        init: None,
-        reset: None,
-        set: None,
-        get: None,
+        supported_fn: &kvm_sbi_fwft_misaligned_delegation_supported,
+        init_fn: None,
+        reset_fn: None,
+        set_fn: None,
+        get_fn: None,
     },
     KvmSbiFwftFeature {
         id: SbiFwftFeature::SbiFwftPointerMaskingPmlen,
         first_reg_num: 3,
-        supported: &kvm_sbi_fwft_pointer_masking_pmlen_supported,
-        init: Some(&kvm_sbi_fwft_pointer_masking_pmlen_init),
-        reset: None,
-        set: None,
-        get: None,
+        supported_fn: &kvm_sbi_fwft_pointer_masking_pmlen_supported,
+        init_fn: Some(&kvm_sbi_fwft_pointer_masking_pmlen_init),
+        reset_fn: None,
+        set_fn: None,
+        get_fn: None,
     },
 ];
 
@@ -78,28 +78,28 @@ struct KvmSbiFwftFeature {
 	/// Check if the feature is supported on the vcpu.
 	/// This callback is optional, if not provided the feature is assumed to
 	/// supported
-	supported: &'static FwftSupportFunction,
+	supported_fn: &'static FwftSupportFunction,
 
 	/// Probe and initialize the feature on the vcpu.
 	/// This callback is optional. If provided, it will be called during
 	/// vcpu initialization to probe the feature availability and perform
 	/// any necessary initialization. Returns true if the feature is supported
 	/// and initialized successfully, false otherwise.
-	init: Option<&'static FwftInitFunction>,
+	init_fn: Option<&'static FwftInitFunction>,
 
 	/// Reset the feature value irrespective whether feature is supported or not.
 	/// This callback is mandatory
-	reset: Option<&'static FwftResetFunction>,
+	reset_fn: Option<&'static FwftResetFunction>,
 
 	/// Set the feature value
 	/// Return SBI_SUCCESS on success or an SBI error (SBI_ERR_*).
 	/// This callback is mandatory
-	set: Option<&'static FwftSetFunction>,
+	set_fn: Option<&'static FwftSetFunction>,
 
 	/// Get the feature current value
 	/// Return SBI_SUCCESS on success or an SBI error (SBI_ERR_*).
 	/// This callback is mandatory
-    get: Option<&'static FwftGetFunction>,
+    get_fn: Option<&'static FwftGetFunction>,
 }
 
 struct KvmSbiFwftConfig {
@@ -156,7 +156,7 @@ fn kvm_sbi_ext_fwft_init(ctx: &mut VcpuSbiContext) -> Result<usize> {
     for i in 0..SBI_FWFT_FEATURES_SIZE {
         let (supported_fn, init_fn) = {
             let feature = &ctx.fwft_context.configs[i].feature;
-            (feature.supported, feature.init)
+            (feature.supported_fn, feature.init_fn)
         };
 
         let mut supported = supported_fn(ctx) == 1;

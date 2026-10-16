@@ -18,7 +18,10 @@ use ostd::{
 pub struct Vm {
     id: u32,
     memory: VmMemory,
-    vcpus: Mutex<BTreeMap<u32, Arc<Vcpu>>>,
+    /// Live vCPUs by id. Stored as `Weak` so that closing the last
+    /// vCPU fd actually drops the `Vcpu` (running its `Drop` and
+    /// freeing the id for reuse).
+    vcpus: Mutex<BTreeMap<u32, Weak<Vcpu>>>,
     arch: VmArch,
 }
 
@@ -46,12 +49,14 @@ impl Vm {
 
     pub fn create_vcpu(self: &Arc<Self>, vcpu_id: u32) -> Result<Arc<Vcpu>> {
         let mut vcpus = self.vcpus.lock();
-        if vcpus.contains_key(&vcpu_id) {
+
+        // A slot is occupied only if a live Vcpu still exists for it.
+        if vcpus.get(&vcpu_id).and_then(Weak::upgrade).is_some() {
             return_errno_with_message!(Errno::EEXIST, "vCPU already exists");
         }
 
         let vcpu = Vcpu::new(vcpu_id, self)?;
-        vcpus.insert(vcpu_id, vcpu.clone());
+        vcpus.insert(vcpu_id, Arc::downgrade(&vcpu));
         drop(vcpus);
         Ok(vcpu)
     }

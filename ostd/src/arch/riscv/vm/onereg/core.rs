@@ -59,7 +59,7 @@ impl VcpuArchInner {
         let reg_num = reg_id & !(KVM_REG_ARCH_MASK | KVM_REG_SIZE_MASK | KVM_REG_RISCV_CORE);
         match reg_num {
             KvmCore::PC => Ok(self.guest_context.get_sepc()),
-            KvmCore::MODE => Ok((self.guest_context.get_sstatus() & SR_SPP == 1) as usize),
+            KvmCore::MODE => Ok(((self.guest_context.get_sstatus() & SR_SPP) != 0) as usize),
             KvmCore::PC..=KvmCore::T6 => Ok(self.guest_context.get_reg(reg_num)?),
             _ => Err(Error::NotFound),
         }
@@ -75,7 +75,7 @@ impl VcpuArchInner {
                     self.guest_context.set_sstatus(sstatus | SR_SPP);
                 } else {
                     let sstatus = self.guest_context.get_sstatus();
-                    self.guest_context.set_sstatus(sstatus & SR_SPP);
+                    self.guest_context.set_sstatus(sstatus & !SR_SPP);
                 }
             }
             KvmCore::PC..=KvmCore::T6 => self.guest_context.set_reg(reg_num, reg_val)?,

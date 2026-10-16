@@ -14,12 +14,12 @@ struct KvmRiscvSbiSta {
 }
 
 pub(super) const VCPU_SBI_EXT_STA: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    probe: Some(&sbi_ext_sta_probe),
-    reset: Some(&kvm_sbi_ext_sta_reset),
+    probe_fn: Some(&sbi_ext_sta_probe),
+    reset_fn: Some(&kvm_sbi_ext_sta_reset),
     state_reg_subtype: KVM_REG_RISCV_SBI_STA,
-    get_state_reg_count: Some(&sbi_ext_sta_get_state_reg_count),
-    get_state_reg: Some(&sbi_ext_sta_get_state_reg),
-    set_state_reg: Some(&sbi_ext_sta_set_state_reg),
+    get_state_reg_count_fn: Some(&sbi_ext_sta_get_state_reg_count),
+    get_state_reg_fn: Some(&sbi_ext_sta_get_state_reg),
+    set_state_reg_fn: Some(&sbi_ext_sta_set_state_reg),
     ..KvmVcpuSbiExtension::new(SBI_EXT_STA, SBI_EXT_STA, &sbi_ext_sta_handler)
 };
 

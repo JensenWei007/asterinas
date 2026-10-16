@@ -58,8 +58,7 @@ impl FileLike for VcpuFile {
                 Ok(0)
             }
             GetStatsFd => {
-                // Currently, this syscall is invoked, but the fd is not used.
-                Ok(10)
+                return_errno_with_message!(Errno::ENOTTY, "KVM_GET_STATS_FD is not supported")
             }
             cmd @ GetOneReg => {
                 let regs = cmd.read()?;
