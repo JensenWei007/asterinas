@@ -91,17 +91,14 @@ impl VcpuSbiContext {
 
     /// Init the SbiContext
     pub(super) fn init(&mut self) -> Result<()> {
-        for i in 0..SBI_EXT_TABLE_SIZE {
-            let entry = &SBI_EXT_TABLE[i];
-            let idx = entry.ext_idx as usize;
-
-            if entry.ext.default_disabled {
-                self.ext_status[idx] = KvmRiscvSbiExtStatus::Disabled;
+        for &(ext_id, ext) in SBI_EXT_TABLE.iter() {
+            let idx = ext_id as usize;
+            self.ext_status[idx] = if ext.default_disabled {
+                KvmRiscvSbiExtStatus::Disabled
             } else {
-                self.ext_status[idx] = KvmRiscvSbiExtStatus::Enabled;
-            }
-
-            if let Some(func) = entry.ext.init {
+                KvmRiscvSbiExtStatus::Enabled
+            };
+            if let Some(func) = ext.init {
                 func(self)?;
             }
         }
@@ -179,85 +176,79 @@ struct KvmVcpuSbiExtension {
     set_state_reg: Option<&'static SbiSetStateRegFunction>,
 }
 
+impl KvmVcpuSbiExtension {
+    /// Create an SBI extension with default optional fields.
+    ///
+    /// `default_disabled`, `probe`, `init`, `deinit`, `reset`,
+    /// `state_reg_subtype`, and all state-reg hooks default to
+    /// disabled/zero; use struct update syntax to override only the
+    /// fields an extension actually needs:
+    ///
+    /// ```ignore
+    /// KvmVcpuSbiExtension {
+    ///     default_disabled: true,
+    ///     init: Some(&sbi_ext_x_init),
+    ///     ..KvmVcpuSbiExtension::new(SBI_EXT_X, SBI_EXT_X, &sbi_ext_x_handler)
+    /// }
+    /// ```
+    pub(super) const fn new(
+        extid_start: usize,
+        extid_end: usize,
+        handler: &'static SbiHandlerFunction,
+    ) -> Self {
+        Self {
+            extid_start,
+            extid_end,
+            default_disabled: false,
+            handler,
+            probe: None,
+            init: None,
+            deinit: None,
+            reset: None,
+            state_reg_subtype: 0,
+            get_state_reg_count: None,
+            get_state_reg_id: None,
+            get_state_reg: None,
+            set_state_reg: None,
+        }
+    }
+}
+
 const SBI_EXT_TABLE_SIZE: usize = 15;
 
-const SBI_EXT_TABLE: [KvmRiscvSbiExtensionEntry; SBI_EXT_TABLE_SIZE] = [
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::V01,
-        ext: &VCPU_SBI_EXT_V01,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Max,
-        ext: &VCPU_SBI_EXT_BASE,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Time,
-        ext: &VCPU_SBI_EXT_TIME,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Ipi,
-        ext: &VCPU_SBI_EXT_IPI,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Rfence,
-        ext: &VCPU_SBI_EXT_RFENCE,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Srst,
-        ext: &VCPU_SBI_EXT_SRST,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Hsm,
-        ext: &VCPU_SBI_EXT_HSM,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Pmu,
-        ext: &VCPU_SBI_EXT_PMU,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Dbcn,
-        ext: &VCPU_SBI_EXT_DBCN,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Susp,
-        ext: &VCPU_SBI_EXT_SUSP,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Sta,
-        ext: &VCPU_SBI_EXT_STA,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Fwft,
-        ext: &VCPU_SBI_EXT_FWFT,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Mpxy,
-        ext: &VCPU_SBI_EXT_MPXY,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Experimental,
-        ext: &VCPU_SBI_EXT_EXPERIMENTAL,
-    },
-    KvmRiscvSbiExtensionEntry {
-        ext_idx: KvmRiscvSbiExtId::Vendor,
-        ext: &VCPU_SBI_EXT_VENDOR,
-    },
+/// `SBI_EXT_TABLE`: each entry pairs an extension with its
+/// `KvmRiscvSbiExtId` slot. `VCPU_SBI_EXT_BASE` intentionally maps to
+/// `KvmRiscvSbiExtId::Max` (the sentinel slot), so BASE does not occupy
+/// a regular `ext_status` slot.
+const SBI_EXT_TABLE: [(KvmRiscvSbiExtId, &KvmVcpuSbiExtension); SBI_EXT_TABLE_SIZE] = [
+    (KvmRiscvSbiExtId::V01,          &VCPU_SBI_EXT_V01),
+    (KvmRiscvSbiExtId::Max,          &VCPU_SBI_EXT_BASE),
+    (KvmRiscvSbiExtId::Time,         &VCPU_SBI_EXT_TIME),
+    (KvmRiscvSbiExtId::Ipi,          &VCPU_SBI_EXT_IPI),
+    (KvmRiscvSbiExtId::Rfence,       &VCPU_SBI_EXT_RFENCE),
+    (KvmRiscvSbiExtId::Srst,         &VCPU_SBI_EXT_SRST),
+    (KvmRiscvSbiExtId::Hsm,          &VCPU_SBI_EXT_HSM),
+    (KvmRiscvSbiExtId::Pmu,          &VCPU_SBI_EXT_PMU),
+    (KvmRiscvSbiExtId::Dbcn,         &VCPU_SBI_EXT_DBCN),
+    (KvmRiscvSbiExtId::Susp,         &VCPU_SBI_EXT_SUSP),
+    (KvmRiscvSbiExtId::Sta,          &VCPU_SBI_EXT_STA),
+    (KvmRiscvSbiExtId::Fwft,         &VCPU_SBI_EXT_FWFT),
+    (KvmRiscvSbiExtId::Mpxy,         &VCPU_SBI_EXT_MPXY),
+    (KvmRiscvSbiExtId::Experimental, &VCPU_SBI_EXT_EXPERIMENTAL),
+    (KvmRiscvSbiExtId::Vendor,       &VCPU_SBI_EXT_VENDOR),
 ];
 
 fn vcpu_get_sbi_ext_idx(idx: usize) -> Result<usize> {
-	for i in 0..SBI_EXT_TABLE_SIZE {
-        if SBI_EXT_TABLE[i].ext_idx as usize == idx {
-            return Ok(i);
-        }
-    }
-	Err(Error::NotFound)
+    SBI_EXT_TABLE
+        .iter()
+        .position(|(_, ext)| (ext.extid_start..=ext.extid_end).contains(&idx))
+        .ok_or(Error::NotFound)
 }
 
 pub(super) fn reset_sbi(inner: &mut VcpuArchInner) -> Result<()> {
-    for i in 0..SBI_EXT_TABLE_SIZE {
-        let entry = &SBI_EXT_TABLE[i];
-        if let Some(func) = entry.ext.reset {
-            if inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::Enabled {
+    for &(ext_id, ext) in SBI_EXT_TABLE.iter() {
+        if let Some(func) = ext.reset {
+            if inner.sbi_context.ext_status[ext_id as usize] != KvmRiscvSbiExtStatus::Enabled {
                 func(&mut inner.sbi_context)?;
             }
         }
@@ -269,9 +260,9 @@ pub(super) fn reset_sbi(inner: &mut VcpuArchInner) -> Result<()> {
 pub fn handle_sbi_call(inner: &mut VcpuArchInner) -> Result<usize> {
     let index = vcpu_get_sbi_ext_idx(inner.guest_context.get_a7());
     if let Ok(index) = index {
-        let ext = &SBI_EXT_TABLE[index];
-        let func = ext.ext.handler;
-        
+        let (_, ext) = &SBI_EXT_TABLE[index];
+        let func = ext.handler;
+
         let rt = func(inner)?;
 
         if !rt.uexit {
@@ -291,30 +282,29 @@ pub fn handle_sbi_call(inner: &mut VcpuArchInner) -> Result<usize> {
 pub(super) fn state_reg_count(inner: &VcpuArchInner, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
     let mut n = 0;
 
-        for i in 0..SBI_EXT_TABLE_SIZE {
-            let entry = &SBI_EXT_TABLE[i];
+    for &(ext_id, ext) in SBI_EXT_TABLE.iter() {
+        if ext.get_state_reg_count.is_none()
+            || inner.sbi_context.ext_status[ext_id as usize] != KvmRiscvSbiExtStatus::Enabled {
+            continue;
+        }
 
-            if entry.ext.get_state_reg_count.is_none() 
-            || inner.sbi_context.ext_status[entry.ext_idx as usize] != KvmRiscvSbiExtStatus::Enabled {
-                continue;
-            }
+        if let Some(func) = ext.get_state_reg_count {
+            let state_reg_count = func();
 
-            if let Some(func) = entry.ext.get_state_reg_count {
-                let state_reg_count = func();
-
-                for j in 0..state_reg_count {
-                    if let Some(vec) = vec.as_deref_mut() {
-                        if let Some(func) = entry.ext.get_state_reg_id {
-                            vec.push(func(j)?);
-                        } else {
-                            let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_SBI_STATE | entry.ext.state_reg_subtype | j;
-                            vec.push(reg);
-                        }
+            for j in 0..state_reg_count {
+                if let Some(vec) = vec.as_deref_mut() {
+                    if let Some(func) = ext.get_state_reg_id {
+                        vec.push(func(j)?);
+                    } else {
+                        let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_SBI_STATE
+                            | ext.state_reg_subtype | j;
+                        vec.push(reg);
                     }
                 }
-                n+=state_reg_count;
             }
+            n += state_reg_count;
         }
+    }
 
     Ok(n)
 }

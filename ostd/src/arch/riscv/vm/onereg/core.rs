@@ -84,17 +84,19 @@ impl VcpuArchInner {
         Ok(())
     }
 
-    pub(super) fn copy_core_reg_vec(&self, mut vec: Option<&mut Vec<usize>>){
-        let n = self.num_core_regs();
-        for i in 0..n {
+    pub(super) fn copy_core_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
+        let mut n = 0;
+        for i in 0..size_of::<KvmCore>()/ size_of::<usize>() {
             let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_CORE | i;
             if let Some(vec) = vec.as_deref_mut() {
                 vec.push(reg);
             }
+            n+=1;
         }
+        Ok(n)
     }
 
-    pub(super) fn num_core_regs(&self) -> usize {
-        size_of::<KvmCore>()/ size_of::<usize>()
+    pub(super) fn num_core_regs(&self) -> Result<usize> {
+        self.copy_core_reg_vec(None)
     }
 }

@@ -27,17 +27,19 @@ impl VcpuArchInner {
         Ok(())
     }
 
-    pub(super) fn copy_fp_f_reg_vec(&self, mut vec: Option<&mut Vec<usize>>){
-        let n = self.num_fp_f_regs();
-        for i in 0..n {
+    pub(super) fn copy_fp_f_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
+        let mut n = 0;
+        for i in 0..size_of::<FFpuContext>()/ size_of::<u32>() {
             let reg = KVM_REG_RISCV | KVM_REG_SIZE_U32 | KVM_REG_RISCV_FP_F | i;
             if let Some(vec) = vec.as_deref_mut() {
                 vec.push(reg);
             }
+            n+=1;
         }
+        Ok(n)
     }
 
-    pub(super) fn num_fp_f_regs(&self) -> usize {
-        size_of::<FFpuContext>()/ size_of::<u32>()
+    pub(super) fn num_fp_f_regs(&self) -> Result<usize> {
+        self.copy_fp_f_reg_vec(None)
     }
 }

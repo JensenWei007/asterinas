@@ -4,17 +4,11 @@ use super::{KvmVcpuSbiExtension, KvmVcpuSbiReturn};
 use crate::arch::vm::vcpu::VcpuArchInner;
 use super::KVM_REG_RISCV_SBI_FWFT;
 use super::VcpuSbiContext;
-use alloc::vec;
 use crate::prelude::*;
 
 const SBI_EXT_FWFT: usize = 0x46574654;
 
 pub(super) const VCPU_SBI_EXT_FWFT: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_FWFT,
-    extid_end: SBI_EXT_FWFT,
-    default_disabled: false,
-    handler: &sbi_ext_fwft_handler,
-    probe: None,
     init: Some(&kvm_sbi_ext_fwft_init),
     deinit: Some(&sbi_ext_fwft_deinit),
     reset: Some(&kvm_sbi_ext_fwft_reset),
@@ -23,6 +17,7 @@ pub(super) const VCPU_SBI_EXT_FWFT: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
     get_state_reg_id: Some(&sbi_ext_fwft_get_state_reg_id),
     get_state_reg: Some(&sbi_ext_fwft_get_state_reg),
     set_state_reg: Some(&sbi_ext_fwft_set_state_reg),
+    ..KvmVcpuSbiExtension::new(SBI_EXT_FWFT, SBI_EXT_FWFT, &sbi_ext_fwft_handler)
 };
 
 const SBI_FWFT_FEATURES_SIZE: usize = 2;
@@ -123,24 +118,20 @@ pub(super) struct KvmSbiFwft {
 
 impl KvmSbiFwft {
     pub(super) fn new() -> Self {
+        let configs = SBI_FWFT_FEATURES
+            .iter()
+            .map(|feature| KvmSbiFwftConfig {
+                feature,
+                supported: false,
+                enabled: false,
+                flags: 0,
+            })
+            .collect();
+
         Self {
-            configs: vec![
-                KvmSbiFwftConfig {
-                    feature: &SBI_FWFT_FEATURES[0],
-                    supported: false,
-                    enabled: false,
-                    flags: 0,
-                },
-                KvmSbiFwftConfig {
-                    feature: &SBI_FWFT_FEATURES[1],
-                    supported: false,
-                    enabled: false,
-                    flags: 0,
-                },
-                // If add more features to SBI_FWFT_FEATURES, here should add feature too.
-            ],
-            have_vs_pmlen_16: false,
+            configs,
             have_vs_pmlen_7: false,
+            have_vs_pmlen_16: false,
         }
     }
 }

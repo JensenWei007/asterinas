@@ -36,13 +36,12 @@ impl VcpuArchInner {
         todo!("OneReg: set_timer is not impled!")
     }
 
-    pub(super) fn copy_timer_reg_vec(&self, mut _vec: Option<&mut Vec<usize>>) -> usize {
+    pub(super) fn copy_timer_reg_vec(&self, mut _vec: Option<&mut Vec<usize>>) -> Result<usize> {
         // todo!("OneReg: copy_timer_reg_vec is not impled!")
-        0
+        Ok(0)
     }
 
-    pub(super) fn num_timer_regs(&self) -> usize {
-        // todo!("OneReg: num_timer_regs is not impled")
-        0
+    pub(super) fn num_timer_regs(&self) -> Result<usize> {
+        self.copy_timer_reg_vec(None)
     }
 }

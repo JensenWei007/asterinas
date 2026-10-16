@@ -55,7 +55,7 @@ impl VcpuArchInner {
         todo!("Onereg: set_config is not impled!")
     }
 
-    pub(super) fn copy_config_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> usize {
+    pub(super) fn copy_config_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
         let mut n = 0;
         for i in 0..(size_of::<KvmConfig>()/ size_of::<usize>()) {
             let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_CONFIG | i;
@@ -64,10 +64,10 @@ impl VcpuArchInner {
             }
             n+=1;
         }
-        n
+        Ok(n)
     }
 
-    pub(super) fn num_config_regs(&self) -> usize {
+    pub(super) fn num_config_regs(&self) -> Result<usize> {
         self.copy_config_reg_vec(None)
     }
 }

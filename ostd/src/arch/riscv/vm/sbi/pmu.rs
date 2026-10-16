@@ -7,19 +7,8 @@ use crate::prelude::*;
 const SBI_EXT_PMU: usize = 0x504D55;
 
 pub(super) const VCPU_SBI_EXT_PMU: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_PMU,
-    extid_end: SBI_EXT_PMU,
-    default_disabled: false,
-    handler: &sbi_ext_pmu_handler,
     probe: Some(&sbi_ext_pmu_probe),
-    init: None,
-    reset: None,
-    deinit: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
+    ..KvmVcpuSbiExtension::new(SBI_EXT_PMU, SBI_EXT_PMU, &sbi_ext_pmu_handler)
 };
 
 fn sbi_ext_pmu_handler(_arch: &VcpuArchInner) -> Result<KvmVcpuSbiReturn> {

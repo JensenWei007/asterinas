@@ -80,15 +80,15 @@ impl VcpuArchInner {
     pub fn num_regs(&self) -> Result<usize> {
         let mut res = 0;
 
-        res+=self.num_config_regs();
-        res+=self.num_core_regs();
-        res+=self.num_csr_regs();
-        res+=self.num_timer_regs();
-        res+=self.num_fp_f_regs();
-        res+=self.num_fp_d_regs();
-        res+=self.num_vector_regs();
-        res+=self.num_isa_ext_regs();
-        res+=self.num_sbi_ext_regs();
+        res+=self.num_config_regs()?;
+        res+=self.num_core_regs()?;
+        res+=self.num_csr_regs()?;
+        res+=self.num_timer_regs()?;
+        res+=self.num_fp_f_regs()?;
+        res+=self.num_fp_d_regs()?;
+        res+=self.num_vector_regs()?;
+        res+=self.num_isa_ext_regs()?;
+        res+=self.num_sbi_ext_regs()?;
         res+=self.num_sbi_state_regs()?;
 
         Ok(res)
@@ -96,15 +96,15 @@ impl VcpuArchInner {
 
     /// Get reg_id of regs which can be used in GetOneReg/SetOneReg
     pub fn copy_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<()> {
-        self.copy_config_reg_vec(vec.as_deref_mut());
-        self.copy_core_reg_vec(vec.as_deref_mut());
-        self.copy_csr_reg_vec(vec.as_deref_mut());
-        self.copy_timer_reg_vec(vec.as_deref_mut());
-        self.copy_fp_f_reg_vec(vec.as_deref_mut());
-        self.copy_fp_d_reg_vec(vec.as_deref_mut());
-        self.copy_vector_reg_vec(vec.as_deref_mut());
-        self.copy_isa_ext_reg_vec(vec.as_deref_mut());
-        self.copy_sbi_ext_reg_vec(vec.as_deref_mut());
+        self.copy_config_reg_vec(vec.as_deref_mut())?;
+        self.copy_core_reg_vec(vec.as_deref_mut())?;
+        self.copy_csr_reg_vec(vec.as_deref_mut())?;
+        self.copy_timer_reg_vec(vec.as_deref_mut())?;
+        self.copy_fp_f_reg_vec(vec.as_deref_mut())?;
+        self.copy_fp_d_reg_vec(vec.as_deref_mut())?;
+        self.copy_vector_reg_vec(vec.as_deref_mut())?;
+        self.copy_isa_ext_reg_vec(vec.as_deref_mut())?;
+        self.copy_sbi_ext_reg_vec(vec.as_deref_mut())?;
         self.copy_sbi_state_reg_vec(vec.as_deref_mut())?;
 
         Ok(())

@@ -14,21 +14,8 @@ const SBI_EXT_BASE_GET_MVENDORID: usize = 4;
 const SBI_EXT_BASE_GET_MARCHID: usize = 5;
 const SBI_EXT_BASE_GET_MIMPID: usize = 6;
 
-pub(super) const VCPU_SBI_EXT_BASE: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_BASE,
-    extid_end: SBI_EXT_BASE,
-    default_disabled: false,
-    handler: &sbi_ext_base_handler,
-    probe: None,
-    init: None,
-    deinit: None,
-    reset: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
-};
+pub(super) const VCPU_SBI_EXT_BASE: KvmVcpuSbiExtension =
+    KvmVcpuSbiExtension::new(SBI_EXT_BASE, SBI_EXT_BASE, &sbi_ext_base_handler);
 
 fn sbi_ext_base_handler(arch: &VcpuArchInner) -> Result<KvmVcpuSbiReturn> {
     let mut rt = KvmVcpuSbiReturn::default();

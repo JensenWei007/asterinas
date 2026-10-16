@@ -219,19 +219,20 @@ impl VcpuArchInner {
         }
     }
 
-    pub(super) fn copy_csr_reg_vec(&self, mut vec: Option<&mut Vec<usize>>){
-        let n = self.num_csr_regs();
-        for i in 0..n {
+    pub(super) fn copy_csr_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
+        let mut n = 0;
+        for i in 0..size_of::<KvmVcpuCsr>()/ size_of::<usize>() {
             let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_CSR | i;
             if let Some(vec) = vec.as_deref_mut() {
                 vec.push(reg);
             }
+            n+=1;
         }
+        Ok(n)
     }
 
-    pub(super) fn num_csr_regs(&self) -> usize {
-        // TODO: add vcpu SSAIA, SMSTATEEN isa ext
-        size_of::<KvmVcpuCsr>()/ size_of::<usize>()
+    pub(super) fn num_csr_regs(&self) -> Result<usize> {
+        self.copy_csr_reg_vec(None)
     }
 }
 

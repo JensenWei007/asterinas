@@ -26,22 +26,25 @@ impl VcpuArchInner {
         Ok(())
     }
 
-    pub(super) fn copy_fp_d_reg_vec(&self, mut vec: Option<&mut Vec<usize>>){
-        let n = self.num_fp_d_regs();
-        for i in 0..n-1 {
+    pub(super) fn copy_fp_d_reg_vec(&self, mut vec: Option<&mut Vec<usize>>) -> Result<usize> {
+        let mut n = 0;
+        for i in 0..32 {
             let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_FP_D | i;
             if let Some(vec) = vec.as_deref_mut() {
                 vec.push(reg);
             }
+            n+=1;
         }
 
         let reg = KVM_REG_RISCV | KVM_REG_SIZE_U64 | KVM_REG_RISCV_FP_D | 32;
         if let Some(vec) = vec.as_deref_mut() {
             vec.push(reg);
         }
+        n+=1;
+        Ok(n)
     }
 
-    pub(super) fn num_fp_d_regs(&self) -> usize {
-        33
+    pub(super) fn num_fp_d_regs(&self) -> Result<usize> {
+        self.copy_fp_d_reg_vec(None)
     }
 }

@@ -12,13 +12,12 @@ impl VcpuArchInner {
         todo!("OneReg: set_sbi_ext is not impled!")
     }
 
-    pub(super) fn copy_sbi_ext_reg_vec(&self, mut _vec: Option<&mut Vec<usize>>) -> usize {
+    pub(super) fn copy_sbi_ext_reg_vec(&self, mut _vec: Option<&mut Vec<usize>>) -> Result<usize> {
         // todo!("OneReg: copy_sbi_ext_reg_vec is not impled!")
-        0
+        Ok(0)
     }
 
-    pub(super) fn num_sbi_ext_regs(&self) -> usize {
-        // todo!("OneReg: num_sbi_ext_regs is not impled")
-        0
+    pub(super) fn num_sbi_ext_regs(&self) -> Result<usize> {
+        self.copy_sbi_ext_reg_vec(None)
     }
 }

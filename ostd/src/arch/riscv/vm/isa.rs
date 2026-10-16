@@ -196,7 +196,7 @@ impl KvmRiscvIsaExtId {
     const COUNT: u32 = Self::MAX as u32;
 }
 
-fn kvm_riscv_isa_check_host(kvm_ext: KvmRiscvIsaExtId) -> Result<IsaExtensions, i32> {
+fn kvm_riscv_isa_check_host(kvm_ext: KvmRiscvIsaExtId) -> Option<IsaExtensions> {
     let mapped = kvm_ext.to_isa_ext();
 
     let host_ext = match mapped {
@@ -205,10 +205,10 @@ fn kvm_riscv_isa_check_host(kvm_ext: KvmRiscvIsaExtId) -> Result<IsaExtensions, 
     };
 
     if !has_extensions(host_ext) {
-        return Err(1);
+        return None;
     }
 
-    Ok(mapped)
+    Some(mapped)
 }
 
 fn kvm_riscv_isa_enable_allowed(ext: IsaExtensions) -> bool {
@@ -216,10 +216,6 @@ fn kvm_riscv_isa_enable_allowed(ext: IsaExtensions) -> bool {
         IsaExtensions::H | IsaExtensions::SSCOFPMF |IsaExtensions::V => false,
         _ => has_extensions(ext),
     }
-}
-
-fn kvm_riscv_isa_disable_allowed(_ext: usize) -> bool {
-    false
 }
 
 fn set_bit(isa: &mut [u64; 2], bit: usize) {
@@ -236,7 +232,7 @@ pub(super) fn kvm_riscv_vcpu_setup_isa(isa: &mut [u64; 2]) {
             continue;
         };
 
-        if let Ok(isa_ext) = kvm_riscv_isa_check_host(ext) {
+        if let Some(isa_ext) = kvm_riscv_isa_check_host(ext) {
             if kvm_riscv_isa_enable_allowed(isa_ext) {
                 set_bit(isa, isa_ext.bits().trailing_zeros() as usize);
             }

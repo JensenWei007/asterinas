@@ -13,69 +13,21 @@ const SBI_EXT_EXPERIMENTAL_END: usize = 0x08FFFFFF;
 const SBI_EXT_VENDOR_START: usize = 0x09000000;
 const SBI_EXT_VENDOR_END: usize = 0x09FFFFFF;
 
-pub(super) const VCPU_SBI_EXT_DBCN: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_DBCN,
-    extid_end: SBI_EXT_DBCN,
+pub(super) const VCPU_SBI_EXT_DBCN: KvmVcpuSbiExtension =KvmVcpuSbiExtension {
     default_disabled: true,
-    handler: &sbi_forward_handler,
-    probe:None,
-    init: None,
-    deinit: None,
-    reset: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
+    ..KvmVcpuSbiExtension::new(SBI_EXT_DBCN, SBI_EXT_DBCN, &sbi_forward_handler)
 };
 
-pub(super) const VCPU_SBI_EXT_MPXY: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_MPXY,
-    extid_end: SBI_EXT_MPXY,
+pub(super) const VCPU_SBI_EXT_MPXY: KvmVcpuSbiExtension =KvmVcpuSbiExtension {
     default_disabled: true,
-    handler: &sbi_forward_handler,
-    probe: None,
-    init: None,
-    deinit: None,
-    reset: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
+    ..KvmVcpuSbiExtension::new(SBI_EXT_MPXY, SBI_EXT_MPXY, &sbi_forward_handler)
 };
 
-pub(super) const VCPU_SBI_EXT_EXPERIMENTAL: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_EXPERIMENTAL_START,
-    extid_end: SBI_EXT_EXPERIMENTAL_END,
-    default_disabled: false,
-    handler: &sbi_forward_handler,
-    probe: None,
-    init: None,
-    deinit: None,
-    reset: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
-};
+pub(super) const VCPU_SBI_EXT_EXPERIMENTAL: KvmVcpuSbiExtension =
+    KvmVcpuSbiExtension::new(SBI_EXT_EXPERIMENTAL_START, SBI_EXT_EXPERIMENTAL_END, &sbi_forward_handler);
 
-pub(super) const VCPU_SBI_EXT_VENDOR: KvmVcpuSbiExtension = KvmVcpuSbiExtension {
-    extid_start: SBI_EXT_VENDOR_START,
-    extid_end: SBI_EXT_VENDOR_END,
-    default_disabled: false,
-    handler: &sbi_forward_handler,
-    probe: None,
-    init: None,
-    deinit: None,
-    reset: None,
-    state_reg_subtype: 0,
-    get_state_reg_count: None,
-    get_state_reg_id: None,
-    get_state_reg: None,
-    set_state_reg: None,
-};
+pub(super) const VCPU_SBI_EXT_VENDOR: KvmVcpuSbiExtension =
+    KvmVcpuSbiExtension::new(SBI_EXT_VENDOR_START, SBI_EXT_VENDOR_END, &sbi_forward_handler);
 
 fn sbi_forward_handler(_arch: &VcpuArchInner) -> Result<KvmVcpuSbiReturn> {
     Ok(KvmVcpuSbiReturn::default())
