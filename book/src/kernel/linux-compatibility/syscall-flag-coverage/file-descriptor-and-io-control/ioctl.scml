@@ -14,6 +14,12 @@ socket_ops = SIOCGIFNAME | SIOCGIFCONF | SIOCGIFFLAGS |
              SIOCGIFINDEX | SIOCGIFTXQLEN | SIOCGIFADDR |
              SIOCGIFDSTADDR | SIOCGIFBRDADDR | SIOCGIFNETMASK;
 
+kvm_ops = KVM_GET_API_VERSION | KVM_CREATE_VM | KVM_CHECK_EXTENSION |
+          KVM_GET_VCPU_MMAP_SIZE | KVM_CREATE_VCPU |
+          KVM_SET_USER_MEMORY_REGION | KVM_GET_ONE_REG | KVM_SET_ONE_REG |
+          KVM_GET_REG_LIST | KVM_INTERRUPT | KVM_SET_MP_STATE | KVM_RUN |
+          KVM_GET_STATS_FD;
+
 // Control file descriptor flags and I/O modes
 ioctl(fd, op = FIONCLEX | FIOCLEX | FIONBIO | FIOASYNC, ..);
 
@@ -47,3 +53,6 @@ ioctl(fd, op = TDX_CMD_GET_REPORT0, ..);
 
 // Control socket and network interface settings
 ioctl(fd, op = <socket_ops>, ..);
+
+// Control Kernel-based Virtual Machine (KVM) devices
+ioctl(fd, op = <kvm_ops>, ..);

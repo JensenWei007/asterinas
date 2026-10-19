@@ -199,7 +199,7 @@ __kvm_riscv_switch_to:
 	sret
 
 	/* Now we back to Host */
-	.align 2
+.balign 4
 
 .Lkvm_switch_return:
 
@@ -211,3 +211,4 @@ __kvm_riscv_switch_to:
 
 	/* Return to rust code */
 	ret
+.size __kvm_riscv_switch_to, .-__kvm_riscv_switch_to

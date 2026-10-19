@@ -4,10 +4,11 @@ use crate::arch::cpu::extension::{IsaExtensions, has_extensions};
 
 pub(super) const KVM_RISCV_BASE_ISA_MASK: usize = 0x0000000003FFFFFF;
 
-/// ISA extension IDs specific to KVM. This is not the same as the host ISA
-/// extension IDs as that is internal to the host and should not be exposed
-/// to the guest. This should always be contiguous to keep the mapping simple
-/// in KVM implementation.
+/// ISA extension IDs specific to KVM.
+/// This is not the same as the host ISA extension IDs,
+/// as that is internal to the host and should not be exposed to the guest.
+/// This should always be contiguous
+/// to keep the mapping simple in the KVM implementation.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum KvmRiscvIsaExtId {

@@ -45,8 +45,8 @@ enum KvmRiscvSbiExtStatus {
 	Disabled,
 }
 
-/// SBI extension IDs specific to KVM. This is not the same as the SBI
-/// extension IDs defined by the RISC-V SBI specification.
+/// SBI extension IDs specific to KVM. 
+/// This is not the same as the SBI extension IDs defined by the RISC-V SBI specification.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum KvmRiscvSbiExtId {
 	V01,
@@ -148,17 +148,16 @@ struct KvmVcpuSbiExtension {
 
 	default_disabled: bool,
 
-	/// SBI extension handler. It can be defined for a given extension or group of
-	/// extension. But it should always return linux error codes rather than SBI
-	/// specific error codes.
+	/// SBI extension handler. 
+    /// It can be defined for a given extension or group of extension.
+	/// But it should always return linux error codes rather than SBI specific error codes.
 	handler_fn: &'static SbiHandlerFunction,
 
     /// Extension specific probe function
     probe_fn: Option<&'static SbiProbeFunction>,
 
-	/// Init/deinit function called once during VCPU init/destroy. These
-	/// might be use if the SBI extensions need to allocate or do specific
-	/// init time only configuration.
+	/// Init/deinit function called once during VCPU init/destroy. 
+	/// These might be use if the SBI extensions need to allocate or do specific init time only configuration.
 	init_fn: Option<&'static SbiInitFunction>,
     deinit_fn: Option<&'static SbiDeinitFunction>,
 
@@ -174,10 +173,9 @@ struct KvmVcpuSbiExtension {
 impl KvmVcpuSbiExtension {
     /// Create an SBI extension with default optional fields.
     ///
-    /// `default_disabled`, `probe`, `init`, `deinit`, `reset`,
-    /// `state_reg_subtype`, and all state-reg hooks default to
-    /// disabled/zero; use struct update syntax to override only the
-    /// fields an extension actually needs:
+    /// `default_disabled`, `probe`, `init`, `deinit`, `reset`, `state_reg_subtype`,
+    /// and all state-reg hooks default to disabled/zero; 
+    /// use struct update syntax to override only the fields an extension actually needs:
     ///
     /// ```ignore
     /// KvmVcpuSbiExtension {
@@ -211,10 +209,9 @@ impl KvmVcpuSbiExtension {
 
 const SBI_EXT_TABLE_SIZE: usize = 15;
 
-/// `SBI_EXT_TABLE`: each entry pairs an extension with its
-/// `KvmRiscvSbiExtId` slot. `VCPU_SBI_EXT_BASE` intentionally maps to
-/// `KvmRiscvSbiExtId::Max` (the sentinel slot), so BASE does not occupy
-/// a regular `ext_status` slot.
+/// `SBI_EXT_TABLE`: each entry pairs an extension with its `KvmRiscvSbiExtId` slot.
+///  `VCPU_SBI_EXT_BASE` intentionally maps to `KvmRiscvSbiExtId::Max` (the sentinel slot),
+///  so BASE does not occupy a regular `ext_status` slot.
 const SBI_EXT_TABLE: [(KvmRiscvSbiExtId, &KvmVcpuSbiExtension); SBI_EXT_TABLE_SIZE] = [
     (KvmRiscvSbiExtId::V01,          &VCPU_SBI_EXT_V01),
     (KvmRiscvSbiExtId::Max,          &VCPU_SBI_EXT_BASE),
@@ -243,12 +240,12 @@ fn vcpu_sbi_find_ext(
         }
 
         match *id {
-            // Individual control of the enabled status per vCPU (such as for basic extensions) is 
-            // not supported; therefore, access is granted automatically as long as the IDs match.
+            // Individual control of the enabled status per vCPU (such as for basic extensions) is not supported;
+            // therefore, access is granted automatically as long as the IDs match.
             x if x >= KvmRiscvSbiExtId::Max => return Ok(ext),
 
-            // This extension supports control on a per-vCPU basis; its application is determined 
-            // by whether it has been explicitly enabled for the current vCPU.
+            // This extension supports control on a per-vCPU basis;
+            // its application is determined  by whether it has been explicitly enabled for the current vCPU.
             other => {
                 if scontext.ext_status[other as usize] == KvmRiscvSbiExtStatus::Enabled {
                     return Ok(ext);

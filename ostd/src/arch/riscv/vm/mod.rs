@@ -22,3 +22,4 @@ pub use cpu::{enable_virtualization_cpu, disable_virtualization_cpu};
 pub use context::VcpuContext;
 pub use types::{CAUSE_IRQ_FLAG, KvmCpuTrap};
 pub use sbi::handle_sbi_call;
+pub use onereg::{KVM_REG_SIZE_MASK, KVM_REG_SIZE_U32, KVM_REG_SIZE_U64};

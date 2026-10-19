@@ -6,6 +6,10 @@ pub(super) mod vm;
 pub(super) mod ioctl;
 pub(super) mod mmio;
 
+use crate::prelude::*;
+use super::KvmRegSize;
+use ostd::arch::vm::{KVM_REG_SIZE_U32, KVM_REG_SIZE_U64, KVM_REG_SIZE_MASK};
+
 #[derive(PartialEq)]
 enum KvmExitReturn {
     ExitToUserSpace,
@@ -17,6 +21,16 @@ impl From<usize> for KvmExitReturn {
         match data {
             0 => Self::ExitToUserSpace,
             _ => Self::ContinueRun,
+        }
+    }
+}
+
+impl KvmRegSize {
+    pub fn from_id(id: usize) -> Result<Self> {
+        match id & KVM_REG_SIZE_MASK {
+            KVM_REG_SIZE_U32 => Ok(Self::U32),
+            KVM_REG_SIZE_U64 => Ok(Self::U64),
+            _ => Err(Error::new(Errno::EINVAL)),
         }
     }
 }

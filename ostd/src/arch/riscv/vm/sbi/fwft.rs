@@ -76,15 +76,16 @@ struct KvmSbiFwftFeature {
 	first_reg_num: usize,
 
 	/// Check if the feature is supported on the vcpu.
-	/// This callback is optional, if not provided the feature is assumed to
-	/// supported
+	/// This callback is optional;
+	/// if it is not provided, the feature is assumed to be supported.
 	supported_fn: &'static FwftSupportFunction,
 
 	/// Probe and initialize the feature on the vcpu.
-	/// This callback is optional. If provided, it will be called during
-	/// vcpu initialization to probe the feature availability and perform
-	/// any necessary initialization. Returns true if the feature is supported
-	/// and initialized successfully, false otherwise.
+	/// This callback is optional.
+	/// If it is provided, it is called during vcpu initialization
+	/// to probe feature availability and perform any necessary initialization.
+	/// Returns `true` if the feature is supported and initialized successfully,
+	/// `false` otherwise.
 	init_fn: Option<&'static FwftInitFunction>,
 
 	/// Reset the feature value irrespective whether feature is supported or not.

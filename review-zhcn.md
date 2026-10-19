@@ -636,7 +636,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与可维护性章节第 188 行的评论共享同一修法**（`dry`）：用真实的 id 区间来定位条目、并让 `ext_status` 使用同一个槽位，既能消除错路由，也能消除手工维护的 `ext_idx`——包括被挂在 `KvmRiscvSbiExtMax` 哨兵值上的 BASE 条目。
 
-### `ostd/src/arch/riscv/vm/timer.rs` line 55
+### `ostd/src/arch/riscv/vm/timer.rs` line 55-已修复
 
 > ```diff
 > 	pub(super) fn call_next_event(&self, next_cycle: usize) {
@@ -653,7 +653,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 ## Security（安全性）
 
-### `kernel/core/src/device/kvm/vcpu_file.rs` line 64
+### `kernel/core/src/device/kvm/vcpu_file.rs` line 64-已修复
 
 > ```diff
 >             GetStatsFd => {
@@ -668,7 +668,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与正确性章节同一行的评论共享同一修法**（`Fabricated file descriptor`）：只需一处修复——经 `CreateVm`/`CreateVcpu` 的路径安装真正的匿名文件，或者干脆让该 ioctl 失败。
 
-### `kernel/core/src/device/kvm/vcpu_file.rs` line 69
+### `kernel/core/src/device/kvm/vcpu_file.rs` line 69-已修复
 
 > ```diff
 >             cmd @ GetOneReg => {
@@ -687,7 +687,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **修复。** 遵守寄存器 id 中编码的大小：对 `KVM_REG_SIZE_U32` 截断为 `u32` 并且只 `write_val`/`read_val` 4 字节，对 `KVM_REG_SIZE_U64` 保持 8 字节，拒绝大小字段既非前者也非后者的 id。
 
-### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 110
+### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 110-已修复
 
 > ```diff
 >         // Process the data returned after being handled by the user.
@@ -705,7 +705,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与其他宿主 panic 类评论共享同一修法**（`ostd/src/arch/riscv/vm/insn/csr.rs` 第 53 行，`ostd/src/arch/riscv/vm/timer.rs` 第 55 行，`kernel/core/src/kvm/arch/riscv/vcpu.rs` 第 223、251 行）：把每个由 guest 或 VMM 控制的选择子都当作不可信输入，并给它确定的、不 panic 的出口。
 
-### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 223
+### `kernel/core/src/kvm/arch/riscv/vcpu.rs` line 223-已修复
 
 > ```diff
 >     fn gstage_page_fault(&self, run: Arc<KvmRun>, trap: KvmCpuTrap) -> Result<KvmExitReturn> {
@@ -725,7 +725,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与其他宿主 panic 类评论共享同一修法**（`kernel/core/src/kvm/arch/riscv/vcpu.rs` 第 110、251 行，`ostd/src/arch/riscv/vm/insn/csr.rs` 第 53 行，`ostd/src/arch/riscv/vm/timer.rs` 第 55 行）：整条运行路径只遵循一条约定——未实现的情况要么向 VMM 返回 `Err(...)`，要么向 guest 注入异常。
 
-### `ostd/src/arch/riscv/vm/context.rs` line 91
+### `ostd/src/arch/riscv/vm/context.rs` line 91-已修复
 
 > ```diff
 >     pub fn get_reg(&self, index: usize) -> Result<usize> {
@@ -749,7 +749,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与硬件章节同一行的评论共享同一修法**，以及可维护性章节第 90 行的 `no-magic-number` 评论：按子数组做 `index - base` 偏移、把布局命名一次、再加上布局断言——一次编辑，覆盖三条评论。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 74
+### `ostd/src/arch/riscv/vm/gstage.rs` line 74-不用管
 
 > ```diff
 >             unsafe {
@@ -773,7 +773,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **修复。** 为每个 `unsafe` 块补上 `// SAFETY:` 注释，说明指针为何有效、为何在界内（涉及多个条件时使用编号列表形式）。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 144
+### `ostd/src/arch/riscv/vm/gstage.rs` line 144-不用管
 
 > ```diff
 >             if pte & PTE_V == 0 {
@@ -796,7 +796,7 @@ fn vcpu_get_sbi_ext_idx(extid: usize) -> Result<usize> {
 
 **与第 94 行的 `Swallowed allocation failure` 评论共享同一修法**（Correctness）：修复就是那里描述的、唯一那条可失败的 `alloc_page`/`GStagePageTable::new` 路径。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 202
+### `ostd/src/arch/riscv/vm/gstage.rs` line 202-不用管
 
 > ```diff
 >         for level in (1..GSTAGE_LEVELS).rev() {
@@ -825,7 +825,7 @@ table = paddr_to_vaddr(next_table as usize) as *mut u64;
 
 **与硬件章节关于同一函数的评论共享同一修法**（第 199 与 202 行）：有效性检查与 `paddr_to_vaddr` 转换都应属于对这条遍历的同一次重写。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 210
+### `ostd/src/arch/riscv/vm/gstage.rs` line 210-不用管
 
 > ```diff
 >         let idx = vpn[0] as usize;
@@ -843,7 +843,7 @@ guest-stage 翻译缺少远端失效（major）：清除叶子 PTE 之后代码�
 
 **修复。** 每一次 guest 内存的 map/unmap 变更都要在该 VM 正在运行的各 hart 上传播远端 G-stage fence（例如经 SBI RFENCE 路径广播 IPI/`hfence.gvma`）——并且要在旧帧被释放之前完成；同时让 `map` 和 `unmap` 一样做刷新。
 
-### `ostd/src/arch/riscv/vm/onereg/csr.rs` line 57
+### `ostd/src/arch/riscv/vm/onereg/csr.rs` line 57-已修复
 
 > ```diff
 >     // SAFETY: Access to union members is safe.
@@ -869,7 +869,7 @@ fn get_csr(&self, index: usize) -> Option<usize> {
 
 **与同一对函数上的可达 panic 评论共享同一修法**（Correctness，`ostd/src/arch/riscv/vm/onereg/csr.rs` 第 181 行）：同一处边界检查同时服务两者——`get_csr` 用 `slice.get(index)`、`set_csr` 做范围检查、两个 `*_general_csr` 调用方以 `Err(Error::NotFound)` 上报。
 
-### `ostd/src/arch/riscv/vm/timer.rs` line 55
+### `ostd/src/arch/riscv/vm/timer.rs` line 55-已修复
 
 > ```diff
 > 	pub(super) fn call_next_event(&self, next_cycle: usize) {
@@ -896,7 +896,7 @@ fn get_csr(&self, index: usize) -> Option<usize> {
 
 ## Hardware（硬件）
 
-### `kernel/core/src/kvm/arch/riscv/mmio.rs` line 201
+### `kernel/core/src/kvm/arch/riscv/mmio.rs` line 201-AI犯病了，跟上面那个一样，改完就不对了
 
 > ```diff
 >     /// Get the rs2 reg_val of RVC insn
@@ -914,7 +914,7 @@ Ok(ctx.get_reg(self.rvc_rs2s())?)
 
 **与正确性章节同一行的评论共享同一修法**（`Wrong register index`）：同一处缺陷，同一行修复。
 
-### `ostd/src/arch/riscv/vm/context.rs` line 91
+### `ostd/src/arch/riscv/vm/context.rs` line 91-已修复
 
 > ```diff
 >                 0..35 => Ok(self.slice.regs_1[index]),
@@ -937,7 +937,7 @@ Ok(ctx.get_reg(self.rvc_rs2s())?)
 
 **与安全性章节同一行的评论共享同一修法**，以及可维护性章节第 90 行的 `no-magic-number` 评论：偏移修复与补全区间是同一次编辑；union 布局本身已核对过与 FFpu/DFpu/QFpu 上下文逐字节对齐，因此错的只是索引。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 199
+### `ostd/src/arch/riscv/vm/gstage.rs` line 199-不用管
 
 > ```diff
 >             let pte = unsafe { core::ptr::read_volatile(pte_ptr) };
@@ -957,7 +957,7 @@ if pte & PTE_V == 0 {
 
 **与 `gstage.rs::unmap_page` 的其他评论共享同一修法**（本文件第 202 行，以及安全性章节同一行的评论）：对这条遍历只做一次重写——照 `map_page` 的做法，在 `pte & PTE_V == 0` 时提前返回，并在每次解引用之前用 `paddr_to_vaddr(...)` 转换。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 202
+### `ostd/src/arch/riscv/vm/gstage.rs` line 202-不用管
 
 > ```diff
 >             let next_table = ((pte & PTE_PPN_MASK) >> 10) << PAGE_SHIFT;
@@ -975,7 +975,7 @@ table = paddr_to_vaddr(next_table as usize) as *mut u64;
 
 **与 `gstage.rs::unmap_page` 的其他评论共享同一修法**（上面第 199 行的 `Missing page-table validity check`，以及安全性章节关于同一行的评论）：一次遍历重写即可覆盖这三条。
 
-### `ostd/src/arch/riscv/vm/switch.S` line 200
+### `ostd/src/arch/riscv/vm/switch.S` line 200-已修复
 
 > ```diff
 > 	/* Now we back to Host */
@@ -991,7 +991,7 @@ table = paddr_to_vaddr(next_table as usize) as *mut u64;
 .balign 4
 ```
 
-### `ostd/src/arch/riscv/vm/switch.S` line 211
+### `ostd/src/arch/riscv/vm/switch.S` line 211-已修复
 
 > ```diff
 > 	/* Return to rust code */
@@ -1005,7 +1005,7 @@ table = paddr_to_vaddr(next_table as usize) as *mut u64;
 .size __kvm_riscv_switch_to, .-__kvm_riscv_switch_to
 ```
 
-### `ostd/src/arch/riscv/vm/vcpu.rs` line 197
+### `ostd/src/arch/riscv/vm/vcpu.rs` line 197-FP目前还没做，进busybox的shell用不到fp
 
 > ```diff
 >     pub fn swap_in_guest_state(&mut self){
@@ -1027,7 +1027,7 @@ self.guest_context.fp_dctx.load();
 self.guest_context.fp_dctx.save();
 ```
 
-### `ostd/src/arch/riscv/vm/vcpu.rs` line 270
+### `ostd/src/arch/riscv/vm/vcpu.rs` line 270-enable_virtualization_cpu就是跟随VM，而不是跟随vcpu，这个没问题，AI错了
 
 > ```diff
 >     fn config_load(&self) {
@@ -1052,7 +1052,7 @@ fn config_load(&self) {
 
 ## Documentation（文档）
 
-### `Makefile` line 6
+### `Makefile` line 6-不用管
 
 > ```diff
 >  # Global build options.
@@ -1067,7 +1067,7 @@ fn config_load(&self) {
 
 **与可维护性章节同一行的 `atomic-commits` 评论共享同一修法**：同一个决定——要么保留 `riscv64` 默认值并修文档，要么把这个翻转从该提交中去掉。
 
-### `kernel/core/src/device/kvm/ioctl.rs` line 17
+### `kernel/core/src/device/kvm/ioctl.rs` line 17-已修复
 
 > ```diff
 > +// System ioctls(for device.rs)
@@ -1096,7 +1096,7 @@ ioctl(fd, op = <kvm_ops>, ..);
 
 然后在该页 `README.md` 的 `### ioctl` 小节中加入 KVM，并注明哪些部分目前只是被接受但尚未实现。
 
-### `ostd/src/arch/riscv/vm/gstage.rs` line 34
+### `ostd/src/arch/riscv/vm/gstage.rs` line 34-不用管
 
 > ```diff
 > //       1.ostd/src/arch/riscv/vm/gstage.rs
@@ -1115,7 +1115,7 @@ ioctl(fd, op = <kvm_ops>, ..);
 +//       5.kernel/core/src/kvm/vm_memory.rs(func map_guest_memory() & unmap_guest_memory())
 ```
 
-### `ostd/src/arch/riscv/vm/isa.rs` line 5
+### `ostd/src/arch/riscv/vm/isa.rs` line 5-已修复
 
 > ```diff
 > /// ISA extension IDs specific to KVM. This is not the same as the host ISA
@@ -1136,7 +1136,7 @@ ioctl(fd, op = <kvm_ops>, ..);
 /// to keep the mapping simple in the KVM implementation.
 ```
 
-### `ostd/src/arch/riscv/vm/sbi/fwft.rs` line 87
+### `ostd/src/arch/riscv/vm/sbi/fwft.rs` line 87-已修复
 
 > ```diff
 > 	/// Check if the feature is supported on the vcpu.
@@ -1170,7 +1170,7 @@ ioctl(fd, op = <kvm_ops>, ..);
 	init: Option<&'static FwftInitFunction>,
 ```
 
-### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 46
+### `ostd/src/arch/riscv/vm/sbi/mod.rs` line 46-已修复
 
 > ```diff
 > /// SBI extension IDs specific to KVM. This is not the same as the SBI
@@ -1195,8 +1195,8 @@ ioctl(fd, op = <kvm_ops>, ..);
 /// defined by the RISC-V SBI specification.
 ```
 
-### `ostd/src/arch/riscv/vm/vcpu.rs` line 43
-
+### `ostd/src/arch/riscv/vm/vcpu.rs` line 43-已修复
+`
 > ```diff
 > 	/// ### VCPU interrupts
 > 	/// The irqs_pending bitmap represents pending interrupts whereas
@@ -1206,7 +1206,6 @@ ioctl(fd, op = <kvm_ops>, ..);
 > ```
 
 `semantic-line-breaks`（minor）：`irqs_pending`/`irqs_pending_mask` 的文档块（第 43-61 行）按固定列宽折行而不是按语义边界折行，于是句子的结尾落在行中间（`... represents bits changed in irqs_pending. Updates`、``... via `SET_INTERRUPT`. However, ...``、`... specific interrupt numbers,` / `however, ...`），而续写的词又从下一行开始。今后只要编辑其中一句，整段都会重排——这正是该规则想要避免的 diff 噪声。
-
 **修复。** 按句子（及从句）边界折行，一行一个意思，例如：
 
 ```rust
@@ -1235,7 +1234,7 @@ ioctl(fd, op = <kvm_ops>, ..);
     /// all the necessary setup has already been handled.
 ```
 
-### `test/initramfs/nix/initramfs.nix` line 64
+### `test/initramfs/nix/initramfs.nix` line 64-不用管
 
 > ```diff
 > +  qemu = builtins.path { path = ./../src/qemu-system-riscv64; };

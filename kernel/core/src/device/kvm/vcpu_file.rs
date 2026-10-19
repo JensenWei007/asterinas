@@ -13,7 +13,7 @@ use crate::{
     context::current_userspace,
     dispatch_ioctl,
     vm::vmar::FileMmapRequest,
-    kvm::{Vm, Vcpu, KvmRun},
+    kvm::{Vm, Vcpu, KvmRun, KvmRegSize},
 };
 
 use super::ioctl::{KVM_RUN_MMAP_SIZE, Run, GetStatsFd, GetOneReg, SetOneReg};
@@ -61,15 +61,37 @@ impl FileLike for VcpuFile {
                 return_errno_with_message!(Errno::ENOTTY, "KVM_GET_STATS_FD is not supported")
             }
             cmd @ GetOneReg => {
-                let regs = cmd.read()?;
-                let reg_val = self.vcpu.get_onereg(regs.id)?;
-                current_userspace!().write_val(regs.addr, &reg_val)?;
+                let reg = cmd.read()?;
+                let reg_val = self.vcpu.get_onereg(reg.id)?;
+                // The size must be verified here;
+                // otherwise, a buffer overflow will occur.
+                match KvmRegSize::from_id(reg.id)? {
+                    KvmRegSize::U32 => {
+                        let reg_val = reg_val as u32;
+                        current_userspace!().write_val(reg.addr, &reg_val)?;
+                    }
+                    KvmRegSize::U64 => {
+                        let reg_val = reg_val as u64;
+                        current_userspace!().write_val(reg.addr, &reg_val)?;
+                    }
+                }
                 Ok(0)
             }
             cmd @ SetOneReg => {
-                let regs = cmd.read()?;
-                let reg_val = current_userspace!().read_val(regs.addr)?;
-                self.vcpu.set_onereg(regs.id, reg_val)?;
+                let reg = cmd.read()?;
+                // The size must be verified here;
+                // otherwise, a buffer overflow will occur.
+                let reg_val = match KvmRegSize::from_id(reg.id)? {
+                    KvmRegSize::U32 => {
+                        let reg_val:u32 = current_userspace!().read_val(reg.addr)?;
+                        reg_val as usize
+                    }
+                    KvmRegSize::U64 => {
+                        let reg_val:u64 = current_userspace!().read_val(reg.addr)?;
+                        reg_val as usize
+                    }
+                };
+                self.vcpu.set_onereg(reg.id, reg_val)?;
                 Ok(0)
             }
             _ => {

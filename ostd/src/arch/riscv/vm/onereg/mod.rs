@@ -19,16 +19,20 @@ mod vector;
 pub(super) use csr::KvmVcpuCsr;
 
 const KVM_REG_ARCH_MASK: usize = 0xff00000000000000;
-const KVM_REG_SIZE_MASK: usize = 0x00f0000000000000;
+
+pub(super)const KVM_REG_RISCV:usize = 0x8000000000000000;
+/// The size mask of regs
+pub const KVM_REG_SIZE_MASK: usize = 0x00f0000000000000;
+/// The size of reg is u32
+pub const KVM_REG_SIZE_U32:usize = 0x0020000000000000;
+/// The size of reg is u64
+pub const KVM_REG_SIZE_U64:usize = 0x0030000000000000;
 
 const KVM_REG_RISCV_TYPE_MASK: usize = 0x00000000FF000000;
 const KVM_REG_RISCV_TYPE_SHIFT: usize = 24;
 const KVM_REG_RISCV_SUBTYPE_MASK: usize = 0x0000000000FF0000;
 pub(super) const KVM_REG_RISCV_SUBTYPE_SHIFT: usize = 16;
 
-pub(super)const KVM_REG_RISCV:usize = 0x8000000000000000;
-const KVM_REG_SIZE_U32:usize = 0x0020000000000000;
-pub(super)const KVM_REG_SIZE_U64:usize = 0x0030000000000000;
 
 const KVM_REG_RISCV_CONFIG: usize = 0x01 << KVM_REG_RISCV_TYPE_SHIFT;
 const KVM_REG_RISCV_CORE: usize = 0x02 << KVM_REG_RISCV_TYPE_SHIFT;

@@ -42,26 +42,29 @@ pub struct VcpuArchInner {
     /// CPU CSR context of Guest VCPU
 	pub(super) guest_csr: KvmVcpuCsr,
 
-	/// ### VCPU interrupts
-	/// The irqs_pending bitmap represents pending interrupts whereas
-	/// irqs_pending_mask represents bits changed in irqs_pending. Updates
-	/// to these bitmaps are serialized so vcpu interrupt sync/flush cannot
-	/// drop a newly injected interrupt while syncing guest-visible HVIP.
-    /// 
-    /// Note: If we do not use AIA to implement interrupt virtualization, 
-    /// all guest interrupts must originate from the user-space VMM (e.g., QEMU) 
-    /// via `SET_INTERRUPT`. However, the VMM's invocation of the `ioctl` requires 
-    /// CPU resources; this means that in a single-core environment, unless 
-    /// the `vcpu_run` thread yields control, the guest will never receive the interrupt.
-    /// 
+    /// ### VCPU interrupts
+    /// The `irqs_pending` bitmap represents pending interrupts,
+    /// whereas `irqs_pending_mask` represents bits changed in `irqs_pending`.
+    /// Updates to these bitmaps are serialized,
+    /// so interrupt sync/flush cannot drop a newly injected interrupt
+    /// while syncing guest-visible HVIP.
+    ///
+    /// Note: If we do not use AIA to implement interrupt virtualization,
+    /// all guest interrupts must originate from the user-space VMM (e.g., QEMU)
+    /// via `SET_INTERRUPT`.
+    /// However, the VMM's invocation of the `ioctl` requires CPU resources;
+    /// this means that in a single-core environment,
+    /// unless the `vcpu_run` thread yields control,
+    /// the guest will never receive the interrupt.
+    ///
     /// Note: Generally, interrupts are associated with specific interrupt numbers,
-    /// however, we do not need to concern ourselves with the specific number—only 
-    /// whether an interrupt has occurred. This is why the `set_interrupt` function 
-    /// does not distinguish between interrupt numbers. We simply need to notify the guest 
-    /// that an interrupt is pending; the guest then independently queries the PLIC via MMIO 
-    /// to determine the specific interrupt number. Since the PLIC is managed by 
-    /// the userspace VMM(e.g. QEMU), all the necessary setup has already been handled.
-    irqs_pending: u64,
+    /// however, we do not need to concern ourselves with the specific number;
+    /// only with whether an interrupt has occurred.
+    /// This is why `set_interrupt` does not distinguish between interrupt numbers.
+    /// We only need to tell the guest that an interrupt is pending;
+    /// the guest then queries the PLIC via MMIO to find the specific number.
+    /// Since the PLIC is managed by the user-space VMM (e.g. QEMU),
+    /// all the necessary setup has already been handled.    irqs_pending: u64,
     irqs_pending_mask: u64,
 
     /// VCPU Timer

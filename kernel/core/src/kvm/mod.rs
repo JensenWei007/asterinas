@@ -15,3 +15,8 @@ pub use vm::Vm;
 pub use ioctl::{check_extension, UserMemoryRegion, OneReg};
 pub use vcpu::Vcpu;
 pub use run_page::KvmRun;
+
+pub enum KvmRegSize {
+    U32,
+    U64,
+}
