@@ -1,5 +1,29 @@
 {
-  "attribution": {
-    "commit": ""
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk-d6e09fd5427e45bea9be339aad4db8f0",
+    "ANTHROPIC_MODEL": "deepseek-flash[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash[1m]",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max"
+  },
+  "effortLevel": "xhigh",
+  "language": "chinese",
+  "outputStyle": "concise",
+  "hasCompletedOnboarding": true,
+  "syntaxHighlightingDisabled": false,
+  "prefersReducedMotion": false,
+  "showThinkingSummaries": true,
+  "promptSuggestionEnabled": true,
+  "spinnerTipsEnabled": true,
+  "spinnerVerbs": {
+    "mode": "append",
+    "verbs": [
+      "思考中",
+      "分析中",
+      "推理中"
+    ]
   }
 }
