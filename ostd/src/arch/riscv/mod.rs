@@ -17,6 +17,8 @@ pub(crate) mod task;
 mod timer;
 pub mod trap;
 
+pub mod vm;
+
 #[cfg(feature = "cvm_guest")]
 pub(crate) fn init_cvm_guest() {
     // Unimplemented, no-op
@@ -96,6 +98,11 @@ pub fn tsc_freq() -> u64 {
 /// Reads the current value of the processor's time-stamp counter (TSC).
 pub fn read_tsc() -> u64 {
     riscv::register::time::read64()
+}
+
+/// Returns the size of cmo management block.
+pub fn cmo_size() -> usize {
+    mm::cmo_block_size()
 }
 
 /// Reads a hardware generated 64-bit random value.
