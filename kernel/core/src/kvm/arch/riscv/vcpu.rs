@@ -44,7 +44,7 @@ impl VcpuArch {
     pub(in crate::kvm) fn new() -> Self {
         Self {
             ran_atleast_once: SpinLock::new(false),
-            inner: SpinLock::new(VcpuArchState::new()),
+            inner: SpinLock::new(VcpuArchState::default()),
             mmio_decode: SpinLock::new(MmioDecode::default()),
             isa: SpinLock::new(0),
             sbi_context: SpinLock::new(VcpuSbiContext::new()),

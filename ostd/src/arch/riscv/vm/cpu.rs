@@ -10,14 +10,18 @@ use super::csr::{Hedeleg, Hideleg, Hcounteren, Hvip, Vsie};
 /// About function: static int kvm_online_cpu(unsigned int cpu) {}
 /// https://github.com/torvalds/linux/blob/master/virt/kvm/kvm_main.c
 pub fn enable_virtualization_cpu(){
-    Hedeleg::write(0);
-    Hideleg::write(0);
+    // SAFETY: The timing of the invocation is determined by the caller,
+    // and this configuration is applied before any actual KVM operations are executed.
+    unsafe {
+        Hedeleg::write(0);
+        Hideleg::write(0);
 
-    // VS should access only the time counter directly.
-    // Everything else should trap.
-    Hcounteren::write(0x02);
+        // VS should access only the time counter directly.
+        // Everything else should trap.
+        Hcounteren::write(0x02);
 
-    Hvip::write(0);
+        Hvip::write(0);
+    }
 }
 
 /// Disable the virtualization for cpu.
@@ -28,8 +32,12 @@ pub fn enable_virtualization_cpu(){
 /// About function: static int kvm_offline_cpu(unsigned int cpu) {}
 /// https://github.com/torvalds/linux/blob/master/virt/kvm/kvm_main.c
 pub fn disable_virtualization_cpu(){
-    Vsie::write(0);
-    Hvip::write(0);
-    Hedeleg::write(0);
-    Hideleg::write(0);
+    // SAFETY: The timing of the invocation is determined by the caller,
+    // and the clearing of this configuration serves as the final step before all virtualization features are disabled.
+    unsafe {
+        Vsie::write(0);
+        Hvip::write(0);
+        Hedeleg::write(0);
+        Hideleg::write(0);
+    }
 }

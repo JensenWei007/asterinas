@@ -12,7 +12,7 @@ use riscv::register::sstatus::{Sstatus, SPP, FS};
 
 /// The state of a vCPU, including registers, interrupts, and timers.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct VcpuArchState {
     /// Vendor details.
 	pub mvendorid: usize,
@@ -71,27 +71,6 @@ pub struct VcpuArchState {
 }
 
 impl VcpuArchState {
-    /// Create a new VcpuArchState.
-    pub fn new() -> Self {
-        Self {
-            mvendorid: 0,
-            marchid: 0,
-            mimpid: 0,
-            host_sscratch: 0,
-            host_stvec: 0,
-            host_scounteren: 0,
-            host_senvcfg: 0,
-            host_sstateen0: 0,
-            host_context: VcpuContext::default(),
-            guest_context: VcpuContext::default(),
-            guest_csr: KvmVcpuCsr::default(),
-            irqs_pending: 0,
-            irqs_pending_mask: 0,
-            timer: VcpuTimer::default(),
-            cfg: KvmVcpuConfig::default(),
-        }
-    }
-
     /// Init the vcpu.
     pub fn init(&mut self){
         // Setup VCPU config.
@@ -152,7 +131,9 @@ impl VcpuArchState {
 
     /// Update vcpu's hvip reg
     pub(super) fn update_hvip(&self) {
-        Hvip::write(self.guest_csr.hvip);
+        // SAFETY: At the time of the call, 
+        // it is guaranteed that interrupts have been synchronized and the system is about to enter the guest.
+        unsafe { Hvip::write(self.guest_csr.hvip); }
     }
 
     /// Save host csrs in host_context and load guest csrs
@@ -197,7 +178,9 @@ impl VcpuArchState {
     pub(super) fn enter_exit(&mut self) -> GuestExitInfo {
         self.swap_in_guest_state();
 
-        self.host_context.hstatus = Hstatus::swap(self.guest_context.hstatus);
+        // SAFETY: Ensure that all operations are complete before making the call,
+        // and update the Hstatus status register as the final step.
+        unsafe { self.host_context.hstatus = Hstatus::swap(self.guest_context.hstatus); }
         
         // SAFETY: All operations requiring software intervention have been ensured to be complete;
         // the function reads the memory values ​​and stores them into the actual registers, 
@@ -206,7 +189,9 @@ impl VcpuArchState {
             __kvm_riscv_switch_to(self as *mut _);
         }
 
-        self.guest_context.hstatus = Hstatus::swap(self.host_context.hstatus);
+        // SAFETY: Returned from guest; the `hstatus` state can now be switched.
+        // and this operation precedes all subsequent actions.
+        unsafe { self.guest_context.hstatus = Hstatus::swap(self.host_context.hstatus); }
 
         self.swap_in_host_state();
 
@@ -219,41 +204,51 @@ impl VcpuArchState {
     /// Note: For details on how the host handles guest interrupts, 
     /// please refer to the comments for `irqs_pending`.
     pub(super) fn sync_interrupts(&mut self) {
+        let hvip;
+
+        // SAFETY: The guest execution state has been halted,
+        // and the interrupt state has been fixed.
+        unsafe {
             self.guest_csr.vsie = Vsie::read();
+            hvip = Hvip::read();
+        }
 
-            let hvip = Hvip::read();
-
-            let vssoft = InterruptCauses::VsSoft as usize;
-            if (self.guest_csr.hvip ^ hvip) & (0x1 << vssoft) != 0 {
-                if hvip & (0x1 << vssoft) != 0 {
-                    let should_set = (self.irqs_pending_mask & 0x1 << vssoft) == 0; 
-                    self.irqs_pending_mask |= 0x1 << vssoft;
-                    if should_set {
-                        self.irqs_pending |= 0x1 << vssoft;
-                    }
-                } else {
-                    let should_clear = (self.irqs_pending_mask & 0x1 << vssoft) == 0; 
-                    self.irqs_pending_mask |= 0x1 << vssoft;
-                    if should_clear {
-                        self.irqs_pending &= !(0x1 << vssoft);
-                    }
+        let vssoft = InterruptCauses::VsSoft as usize;
+        if (self.guest_csr.hvip ^ hvip) & (0x1 << vssoft) != 0 {
+            if hvip & (0x1 << vssoft) != 0 {
+                let should_set = (self.irqs_pending_mask & 0x1 << vssoft) == 0; 
+                self.irqs_pending_mask |= 0x1 << vssoft;
+                if should_set {
+                    self.irqs_pending |= 0x1 << vssoft;
+                }
+            } else {
+                let should_clear = (self.irqs_pending_mask & 0x1 << vssoft) == 0; 
+                self.irqs_pending_mask |= 0x1 << vssoft;
+                if should_clear {
+                    self.irqs_pending &= !(0x1 << vssoft);
                 }
             }
+        }
             
-            self.timer.sync();
+        self.timer.sync();
     }
     
     fn config_load(&self) {
-        Hedeleg::write(self.cfg.hedeleg);
-        Hideleg::write(self.cfg.hideleg);
-        Henvcfg::write(self.cfg.henvcfg);
+        // SAFETY: The call occurs before any guest operations are executed,
+        // and it is guaranteed to be invoked exactly once per `ioctl` call.
+        unsafe {
+            Hedeleg::write(self.cfg.hedeleg);
+            Hideleg::write(self.cfg.hideleg);
+            Henvcfg::write(self.cfg.henvcfg);
+        }
     }
 
     /// Update HGATP reg which is used in G-stage addr trans.
     pub(super) fn update_hgatp(&self, pgd_paddr: u64) {
         let mut hgatp = HGATP_MODE_LEVEL_48 << HGATP_MODE_SHIFT;
         hgatp |= pgd_paddr as usize >> PAGE_SHIFT & HGATP_PPN;
-        Hgatp::write(hgatp);
+        // SAFETY: Ensure that all page table operations—including those for page faults—have been completed at the time of the call.
+        unsafe { Hgatp::write(hgatp); }
     }
 
     /// Check whether the trap is from guest
@@ -288,15 +283,19 @@ impl VcpuArchState {
     pub fn vcpu_load(&mut self) {
         self.config_load();
 
-        Vsstatus::write(self.guest_csr.vsstatus);
-        Vsie::write(self.guest_csr.vsie);
-        Vstvec::write(self.guest_csr.vstvec);
-        Vsscratch::write(self.guest_csr.vsscratch);
-        Vsepc::write(self.guest_csr.vsepc);
-        Vscause::write(self.guest_csr.vscause);
-        Vstval::write(self.guest_csr.vstval);
-        Hvip::write(self.guest_csr.hvip);
-        Vsatp::write(self.guest_csr.vsatp);
+        // SAFETY: This call occurs before the execution of any guest operations and is invoked exactly once per `ioctl` call.
+        // The subsequent switching of all registers is guaranteed to be handled automatically by the hardware.
+        unsafe {
+            Vsstatus::write(self.guest_csr.vsstatus);
+            Vsie::write(self.guest_csr.vsie);
+            Vstvec::write(self.guest_csr.vstvec);
+            Vsscratch::write(self.guest_csr.vsscratch);
+            Vsepc::write(self.guest_csr.vsepc);
+            Vscause::write(self.guest_csr.vscause);
+            Vstval::write(self.guest_csr.vstval);
+            Hvip::write(self.guest_csr.hvip);
+            Vsatp::write(self.guest_csr.vsatp);
+        }
 
         self.timer.restore();
     }
@@ -309,15 +308,19 @@ impl VcpuArchState {
     pub fn vcpu_put(&mut self) {
         self.timer.save();
 
-        self.guest_csr.vsstatus = Vsstatus::read();
-        self.guest_csr.vsie=Vsie::read();
-        self.guest_csr.vstvec=Vstvec::read();
-        self.guest_csr.vsscratch=Vsscratch::read();
-        self.guest_csr.vsepc=Vsepc::read();
-        self.guest_csr.vscause=Vscause::read();
-        self.guest_csr.vstval=Vstval::read();
-        self.guest_csr.hvip=Hvip::read();
-        self.guest_csr.vsatp=Vsatp::read();
+        // SAFETY: This invocation occurs after all guest operations have been completed and just before the transition back to user space;
+        // it is triggered exactly once per `ioctl` call. The subsequent switching of all registers is handled automatically by the hardware.
+        unsafe {
+            self.guest_csr.vsstatus = Vsstatus::read();
+            self.guest_csr.vsie=Vsie::read();
+            self.guest_csr.vstvec=Vstvec::read();
+            self.guest_csr.vsscratch=Vsscratch::read();
+            self.guest_csr.vsepc=Vsepc::read();
+            self.guest_csr.vscause=Vscause::read();
+            self.guest_csr.vstval=Vstval::read();
+            self.guest_csr.hvip=Hvip::read();
+            self.guest_csr.vsatp=Vsatp::read();
+        }
     }
 
     /// The VMM(from user-space, e.g. QEMU) told us guest has a interrupt.

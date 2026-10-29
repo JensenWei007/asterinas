@@ -17,7 +17,9 @@ impl VcpuTimer {
 	}
 
 	pub(super) fn sync(&mut self) {
-		self.next_cycles = Vstimecmp::read();
+		// SAFETY: The guest has already exited at the time of the call; furthermore,
+		// `Vstimecmp` functions solely as a counter and has no impact on memory safety.
+		unsafe { self.next_cycles = Vstimecmp::read(); }
 	}
 
 	/// Reset the timer.
@@ -26,10 +28,14 @@ impl VcpuTimer {
 	}
 
 	pub(super) fn save(&self) {
-		Vstimecmp::write(usize::MAX);
+		// SAFETY: When returning to user mode, registers must be reset; furthermore,
+		// `Vstimecmp` functions solely as a counter and has no impact on memory safety.
+		unsafe { Vstimecmp::write(usize::MAX); }
 	}
 
 	pub(super) fn restore(&mut self) {
-        Vstimecmp::write(self.next_cycles);
+		// SAFETY: At the time of the call, control is about to return to the guest; furthermore,
+		// `Vstimecmp` functions solely as a counter and has no impact on memory safety.
+        unsafe { Vstimecmp::write(self.next_cycles); }
 	}
 }

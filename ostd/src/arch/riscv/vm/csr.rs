@@ -23,7 +23,7 @@ macro_rules! define_csr {
         impl $name {
             /// Read this csr
             #[inline]
-            pub(super) fn read() -> usize {
+            pub(super) unsafe fn read() -> usize {
                 let r: usize;
                 // SAFETY: Reading a CSR into a GPR has no memory side effects
                 // beyond the CSR itself; `$addr` is a valid CSR address.
@@ -33,7 +33,7 @@ macro_rules! define_csr {
 
             /// Write `value` to this CSR.
             #[inline]
-            pub(super) fn write(value: usize) {
+            pub(super) unsafe fn write(value: usize) {
                 // SAFETY: Writing a GPR to a CSR has no memory side effects
                 // beyond the CSR itself; `$addr` is a valid CSR address.
                 unsafe { asm!(concat!("csrw ", stringify!($addr), ", {0}"), in(reg) value) };
@@ -41,7 +41,7 @@ macro_rules! define_csr {
 
             /// Atomically swap `value` into this CSR, returning the old value.
             #[inline]
-            pub(super) fn swap(value: usize) -> usize {
+            pub(super) unsafe fn swap(value: usize) -> usize {
                 let old: usize;
                 // SAFETY: `csrrw` atomically reads and writes the CSR.
                 unsafe { asm!(concat!("csrrw {0}, ", stringify!($addr), ", {1}"), out(reg) old, in(reg) value) };
